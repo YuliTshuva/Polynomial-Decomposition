@@ -6,11 +6,12 @@ rcParams["font.family"] = "Times New Roman"
 
 
 def present_result(result):
-    print(str(result).replace("**", "^").replace("*", ""))
+    return str(result).replace("**", "^").replace("*", "")
 
 
 def generate_polynomial(degree, var):
-    coeffs = [random.randint(-5, 5) for _ in range(degree + 1)]
+    scale = 3
+    coeffs = [round(random.random()*2*scale-scale, 2) for _ in range(degree + 1)]
     polynomial = sum(coeffs[i] * var ** i for i in range(degree + 1))
     return polynomial
 
