@@ -42,3 +42,12 @@ class PolynomialDecomposition(nn.Module):
         Rx = sum(self.P[i] * Qx ** i for i in range(len(self.P)))  # P(Q(x)) = R(x)
 
         return Rx  # Already differentiable!
+
+
+class LnLoss(nn.Module):
+    def __init__(self, n):
+        super().__init__()
+        self.n = n
+
+    def forward(self, y_pred, y_true):
+        return torch.mean(torch.abs(y_pred - y_true) ** self.n)

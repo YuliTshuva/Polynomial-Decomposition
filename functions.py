@@ -24,8 +24,6 @@ def plot_loss(losses, save=None, show=False):
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)
     plt.ylabel("Loss", fontsize=15)
-    # Set the y-axis limits
-    plt.ylim(bottom=1e0)
     if save:
         plt.savefig(save)
     if show:

@@ -6,6 +6,8 @@ Implementing polynomial decomposition using PyTorch.
 # Imports
 import torch
 import torch.optim as optim
+from torch.optim.lr_scheduler import ExponentialLR
+
 from model import PolynomialDecomposition
 import sympy as sp
 from sympy import expand
@@ -17,13 +19,13 @@ from os.path import join
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
-LR = 1e-3
+INITIAL_LR = 1e-3
 EPOCHS = int(1e6)
 SAMPLES = 1000
-EARLY_STOPPING, MIN_CHANGE = int(4e2), 0.01
+EARLY_STOPPING, MIN_CHANGE = int(1e3), 0.01
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-VAR = 1 + (1 / DEGREE)
+VAR = 2
 OUTPUT_FILE = join("output", "polynomials.txt")
 
 # Define variable
@@ -42,7 +44,7 @@ with open(OUTPUT_FILE, "w") as f:
 model = PolynomialDecomposition(degree=DEGREE, deg_q=3).to(DEVICE)
 
 # Define the optimizer
-optimizer = optim.Adam(model.parameters(), lr=LR)
+optimizer = optim.Adam(model.parameters(), lr=INITIAL_LR)
 
 # Define loss function
 loss_fn = torch.nn.MSELoss()
@@ -54,7 +56,7 @@ y = torch.tensor(f(X.cpu().numpy()), dtype=torch.float64, requires_grad=True).to
 
 # Set a list of loss functions
 losses = []
-count, min_loss = 0, float("inf")
+count, min_loss, best_epoch = 0, float("inf"), -1
 # Build a training loop
 for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
     model.train()
@@ -72,6 +74,7 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
     optimizer.step()
 
     if loss.item() + MIN_CHANGE < min_loss:
+        best_epoch = epoch
         count = 0
         min_loss = loss.item()
         # Save the model in the output directory
@@ -102,6 +105,8 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             f.write(f"Restored Q(x): {present_result(restored_q)}\n")
             f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
 
+plot_loss(losses, save=join("output", "loss.png"))
+
 # Load the best model
 model.load_state_dict(torch.load(join("output", "model.pth")))
 
@@ -113,6 +118,7 @@ restored_p = sum(P_weights[i] * x ** i for i in range(len(P_weights)))
 restored_q = sum(Q_weights[i] * x ** i for i in range(len(Q_weights)))
 with open(OUTPUT_FILE, "a") as f:
     f.write("\n" + "-" * 50 + "\n")
-    f.write(f"Final P(x): {present_result(restored_p)}\n")
-    f.write(f"Final Q(x): {present_result(restored_q)}\n")
-    f.write(f"Final R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
+    f.write(f"Epoch {best_epoch} ({(best_epoch / EPOCHS * 100):.3f}%): Loss = {min_loss:.3f}\n")
+    f.write(f"Restored P(x): {present_result(restored_p)}\n")
+    f.write(f"Restored Q(x): {present_result(restored_q)}\n")
+    f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
