@@ -10,6 +10,12 @@ def present_result(result):
 
 
 def generate_polynomial(degree, var):
+    coeffs = [random.randint(-3, 3) for _ in range(degree + 1)]
+    polynomial = sum(coeffs[i] * var ** i for i in range(degree + 1))
+    return polynomial
+
+
+def generate_polynomial2(degree, var):
     scale = 3
     coeffs = [round(random.random()*2*scale-scale, 2) for _ in range(degree + 1)]
     polynomial = sum(coeffs[i] * var ** i for i in range(degree + 1))
@@ -17,6 +23,7 @@ def generate_polynomial(degree, var):
 
 
 def plot_loss(losses, save=None, show=False):
+    losses = losses[1:]
     plt.figure()
     # Plot in logarithmic scale
     plt.yscale("log")

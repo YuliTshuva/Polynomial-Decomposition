@@ -6,7 +6,6 @@ Implementing polynomial decomposition using PyTorch.
 # Imports
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import ExponentialLR
 
 from model import PolynomialDecomposition
 import sympy as sp
@@ -25,7 +24,7 @@ SAMPLES = 1000
 EARLY_STOPPING, MIN_CHANGE = int(1e3), 0.01
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-VAR = 2
+VAR = 3
 OUTPUT_FILE = join("output", "polynomials.txt")
 
 # Define variable

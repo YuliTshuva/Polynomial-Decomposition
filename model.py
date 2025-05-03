@@ -35,13 +35,17 @@ class PolynomialDecomposition(nn.Module):
         self.Q = nn.Parameter(torch.randn(deg_q + 1, dtype=torch.float64))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # Compute Q(x)
-        Qx = sum(self.Q[i] * input ** i for i in range(len(self.Q)))  # Q(x)
+        Qx = PolynomialDecomposition.horner_eval(self.Q, input)
+        Rx = PolynomialDecomposition.horner_eval(self.P, Qx)
+        return Rx
 
-        # Now compute P(Q(x)) = R(x)
-        Rx = sum(self.P[i] * Qx ** i for i in range(len(self.P)))  # P(Q(x)) = R(x)
+    @staticmethod
+    def horner_eval(coeffs: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        result = torch.zeros_like(x)
+        for c in coeffs.flip(0):
+            result = result * x + c
+        return result
 
-        return Rx  # Already differentiable!
 
 
 class LnLoss(nn.Module):
