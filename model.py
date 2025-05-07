@@ -47,6 +47,29 @@ class PolynomialDecomposition(nn.Module):
         return result
 
 
+class Polynomial(nn.Module):
+    """
+    Polynomial decomposition using PyTorch.
+    """
+
+    def __init__(self, deg: int):
+        """
+        Initialize the polynomial decomposition module.
+
+        Args:
+            degree (int): Degree of the polynomial.
+        """
+        super(Polynomial, self).__init__()
+        # Set the degree of R
+        self.degree = deg
+
+        # Define the coefficients for P and Q
+        self.P = nn.Parameter(torch.randn(deg + 1, dtype=torch.float64))
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        Px = PolynomialDecomposition.horner_eval(self.P, input)
+        return Px
+
 
 class LnLoss(nn.Module):
     def __init__(self, n):

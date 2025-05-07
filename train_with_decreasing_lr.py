@@ -13,24 +13,28 @@ from sympy import expand
 from functions import *
 from tqdm.auto import tqdm
 from os.path import join
+from torch.optim.lr_scheduler import StepLR
 
 # Constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
 EPOCHS = int(1e6)
-SAMPLES = int(5e2)
-EARLY_STOPPING, MIN_CHANGE = int(1e3), 0.01
+SAMPLES = int(1e3)
+EARLY_STOPPING, MIN_CHANGE, GAMMA = int(1e3), 1, 0.4
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 VAR = 2
-LR = 1e-3
-OUTPUT_FILE = join("output", "polynomials.txt")
+LR, MIN_LR = 1e-1, 1e-5
+OUTPUT_FILE = join("output", "polynomials2.txt")
+MODEL_PATH = join("output", "model2.pth")
+PLOT_PATH = join("output", "loss2.png")
 
 # Define variable
 x = sp.symbols('x')
 # Define the polynomials
 P, Q = generate_polynomial(degree=DEG_P, var=x), generate_polynomial(degree=DEG_Q, var=x)
+# Define the polynomial R
 R = expand(P.subs(x, Q))
 
 # Find the degree of R
@@ -49,6 +53,7 @@ model = PolynomialDecomposition(degree=DEGREE, deg_q=3).to(DEVICE)
 
 # Define the optimizer
 optimizer = optim.Adam(model.parameters(), lr=LR)
+scheduler = StepLR(optimizer, step_size=1, gamma=GAMMA)
 
 # Define loss function
 loss_fn = torch.nn.MSELoss()
@@ -61,6 +66,7 @@ y = torch.tensor(f(X.cpu().numpy()), dtype=torch.float64, requires_grad=True).to
 # Set a list of loss functions
 losses = []
 count, min_loss, best_epoch = 0, float("inf"), -1
+current_lr = LR
 # Build a training loop
 for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
     model.train()
@@ -83,17 +89,25 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         count = 0
         min_loss = loss.item()
         # Save the model in the output directory
-        torch.save(model.state_dict(), join("output", "model.pth"))
+        torch.save(model.state_dict(), MODEL_PATH)
     else:
         count += 1
 
     if count > EARLY_STOPPING:
-        print(f"Early stopping at epoch {epoch}")
-        break
+        count = 0
+        if current_lr > MIN_LR:
+            current_lr *= GAMMA
+            scheduler.step()
+            print(f"Learning rate decreased to {current_lr:.6f}")
+            if current_lr <= 1e-2:
+                MIN_CHANGE = 0.01
+        else:
+            print(f"Early stopping.")
+            break
 
     # Plot the loss
     if epoch % 2000 == 0:
-        plot_loss(losses, save=join("output", "loss.png"))
+        plot_loss(losses, save=PLOT_PATH)
 
     # Evaluation
     if epoch % (3 * EPOCHS // 100) == 0:
@@ -110,10 +124,10 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             f.write(f"Restored Q(x): {present_result(restored_q)}\n")
             f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
 
-plot_loss(losses, save=join("output", "loss.png"))
+plot_loss(losses, save=PLOT_PATH)
 
 # Load the best model
-model.load_state_dict(torch.load(join("output", "model.pth")))
+model.load_state_dict(torch.load(MODEL_PATH))
 
 # Final evaluation
 model.eval()
