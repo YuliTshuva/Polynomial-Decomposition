@@ -1,6 +1,6 @@
 """
 Yuli Tsvhua
-Implementing polynomial decomposition using PyTorch.
+Train with adjusting LR
 """
 
 # Imports

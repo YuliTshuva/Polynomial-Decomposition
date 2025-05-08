@@ -71,10 +71,14 @@ class Polynomial(nn.Module):
         return Px
 
 
-class LnLoss(nn.Module):
-    def __init__(self, n):
-        super().__init__()
-        self.n = n
+def custom_loss(model):
+    # Collect all weights
+    reg_loss = 0.0
+    for param in model.parameters():
+        if param.requires_grad:
+            # Penalize distance from nearest integer
+            rounded = torch.round(param)
+            reg_loss += torch.sum((10 * (param - rounded)) ** 2)
 
-    def forward(self, y_pred, y_true):
-        return torch.mean(torch.abs(y_pred - y_true) ** self.n)
+    # Total loss
+    return reg_loss

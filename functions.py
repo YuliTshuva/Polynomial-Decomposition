@@ -46,3 +46,4 @@ def plot_losses(l1, l2, label1, label2, save=None, show=False):
     if show:
         plt.show()
     plt.close()
+

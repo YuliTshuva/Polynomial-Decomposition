@@ -1,6 +1,6 @@
 """
 Yuli Tsvhua
-Implementing polynomial decomposition using PyTorch.
+Adversarial training.
 """
 
 # Imports

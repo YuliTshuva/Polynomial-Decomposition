@@ -1,13 +1,12 @@
 """
 Yuli Tsvhua
-Implementing polynomial decomposition using PyTorch.
+Integer Case.
 """
 
 # Imports
 import torch
 import torch.optim as optim
-
-from model import PolynomialDecomposition
+from model import *
 import sympy as sp
 from sympy import expand
 from functions import *
@@ -20,23 +19,28 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Hyperparameters
 EPOCHS = int(1e6)
 SAMPLES = int(5e2)
-EARLY_STOPPING, MIN_CHANGE = int(1e3), 0.01
+EARLY_STOPPING, MIN_CHANGE = int(3e4), 0.01
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 VAR = 2
 LR = 1e-3
-OUTPUT_FILE = join("output", "polynomials.txt")
+LAMBDA = VAR ** (DEGREE//2)
+BATCH_SIZE = 16
+OUTPUT_FILE = join("output", "polynomials4.txt")
+PLOT1_PATH = join("output", "loss4.png")
+PLOT2_PATH = join("output", "losses4.png")
+MODEL_PATH = join("output", "model4.pth")
 
 # Define variable
 x = sp.symbols('x')
-# Define the polynomials
-P, Q = generate_polynomial(degree=DEG_P, var=x), generate_polynomial(degree=DEG_Q, var=x)
-R = expand(P.subs(x, Q))
 
-# Find the degree of R
-deg_r = R.as_poly(x).degree()
-if deg_r < DEGREE:
-    raise ValueError(f"Degree of R is less than {DEGREE}. Please increase the degree of P or Q.")
+deg_r = 0
+while deg_r < DEGREE:
+    # Define the polynomials
+    P, Q = generate_polynomial(degree=DEG_P, var=x), generate_polynomial(degree=DEG_Q, var=x)
+    R = expand(P.subs(x, Q))
+    # Find the degree of R
+    deg_r = R.as_poly(x).degree()
 
 # Create output file in the output directory
 with open(OUTPUT_FILE, "w") as f:
@@ -51,7 +55,8 @@ model = PolynomialDecomposition(degree=DEGREE, deg_q=3).to(DEVICE)
 optimizer = optim.Adam(model.parameters(), lr=LR)
 
 # Define loss function
-loss_fn = torch.nn.MSELoss()
+loss_reg_fn = custom_loss
+loss_mse_fn = torch.nn.MSELoss()
 
 # Define training data
 X = torch.linspace(-1 * VAR, VAR, SAMPLES, dtype=torch.float64).to(DEVICE)
@@ -60,6 +65,7 @@ y = torch.tensor(f(X.cpu().numpy()), dtype=torch.float64, requires_grad=True).to
 
 # Set a list of loss functions
 losses = []
+mse_losses, reg_losses = [], []
 count, min_loss, best_epoch = 0, float("inf"), -1
 # Build a training loop
 for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
@@ -70,8 +76,12 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
     output = model(X)
 
     # Compute loss
-    loss = loss_fn(output, y)
+    mse_loss, reg_loss = loss_mse_fn(output, y), loss_reg_fn(model)
+    # loss = mse_loss + LAMBDA * reg_loss
+    loss = mse_loss
     losses.append(loss.item())
+    mse_losses.append(mse_loss.item())
+    reg_losses.append(reg_loss.item() * LAMBDA)
 
     # Backward pass and optimization
     loss.backward()
@@ -83,7 +93,7 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         count = 0
         min_loss = loss.item()
         # Save the model in the output directory
-        torch.save(model.state_dict(), join("output", "model.pth"))
+        torch.save(model.state_dict(), MODEL_PATH)
     else:
         count += 1
 
@@ -91,12 +101,18 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         print(f"Early stopping at epoch {epoch}")
         break
 
+    if epoch % int(1e4) == 0 and epoch > 3e4:
+        # Round all weights of the model
+        model.P.data = torch.round(model.P.data)
+        model.Q.data = torch.round(model.Q.data)
+
     # Plot the loss
-    if epoch % 2000 == 0:
-        plot_loss(losses, save=join("output", "loss.png"))
+    if epoch % int(5e3) == 0:
+        plot_loss(losses, save=PLOT1_PATH)
+        plot_losses(mse_losses, reg_losses, label1="MSE Loss", label2="REG Loss", save=PLOT2_PATH)
 
     # Evaluation
-    if epoch % (3 * EPOCHS // 100) == 0:
+    if epoch % int(1e4) == 0:
         model.eval()
         P_weights = model.P.detach().cpu().numpy()
         Q_weights = model.Q.detach().cpu().numpy()
@@ -110,10 +126,15 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             f.write(f"Restored Q(x): {present_result(restored_q)}\n")
             f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
 
-plot_loss(losses, save=join("output", "loss.png"))
+# Plot the losses for the last time
+plot_loss(losses, save=PLOT1_PATH)
+plot_losses(mse_losses, reg_losses, label1="MSE Loss", label2="REG Loss", save=PLOT2_PATH)
 
 # Load the best model
-model.load_state_dict(torch.load(join("output", "model.pth")))
+model.load_state_dict(torch.load(MODEL_PATH))
+# Round all weights of the model
+model.P.data = torch.round(model.P.data)
+model.Q.data = torch.round(model.Q.data)
 
 # Final evaluation
 model.eval()
