@@ -39,10 +39,9 @@ while deg_r < DEGREE:
     deg_r = R.as_poly(x).degree()
 
 # Create output file in the output directory
+initial_string = f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
 with open(OUTPUT_FILE, "w") as f:
-    f.write(f"P(x): {present_result(P)}\n")
-    f.write(f"Q(x): {present_result(Q)}\n")
-    f.write(f"R(x): {present_result(R)}\n")
+    f.write(initial_string)
 
 # Initialize the model
 model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
@@ -93,9 +92,6 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             LR /= 10
             scheduler.step()
             count = 0
-
-            EARLY_STOPPING *= 10
-            EARLY_STOPPING = max(1e-3, EARLY_STOPPING)
             MIN_CHANGE /= 10
 
     # Plot the loss
@@ -103,8 +99,9 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         plot_loss(losses, save=LOSS_PLOT)
 
     # Evaluation
-    if epoch % (1*EPOCHS // 100) == 0:
-        with open(OUTPUT_FILE, "a") as f:
+    if epoch % (1 * EPOCHS // 100) == 0:
+        with open(OUTPUT_FILE, "w") as f:
+            f.write(initial_string)
             f.write("\n" + "-" * 50 + "\n")
             f.write(f"Epoch {epoch} ({int(epoch / EPOCHS * 100)}%): Loss = {loss.item():.3f}\n")
             f.write(f"R(x): {torch.round(output, decimals=2)}\n")
