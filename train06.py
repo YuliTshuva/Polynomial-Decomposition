@@ -1,46 +1,40 @@
 """
-Yuli Tsvhua
-Integer Case.
+Yuli Tshuva
+Addressing the coefficients directly.
 """
 
 # Imports
 import torch
 import torch.optim as optim
-from model import *
+from model import PolynomialSearch
 import sympy as sp
-from sympy import expand
 from functions import *
 from tqdm.auto import tqdm
 from os.path import join
-from algorithms.partial_decomposition import recover_p_from_composition
 
 # Constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
-EPOCHS = int(1e6)
-SAMPLES = int(1e3)
-EARLY_STOPPING, MIN_CHANGE = int(3e4), 0.01
+EPOCHS = int(1e5)
+LR = 1e-3
+EARLY_STOPPING, MIN_CHANGE = int(1e3), 1e-4
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-VAR = 10
-LR = 1e-3
-LAMBDA = VAR ** (DEGREE // 2)
-BATCH_SIZE = 16
-SWITCH = 5e4
-OUTPUT_FILE = join("output", "polynomials4.txt")
-PLOT1_PATH = join("output", "loss4.png")
-PLOT2_PATH = join("output", "losses4.png")
-MODEL_PATH = join("output", "model4.pth")
+OUTPUT_FILE = join("output", "polynomials5.txt")
+LOSS_PLOT = join("output", "loss5.png")
+MODEL_PATH = join("output", "model5.pth")
 
 # Define variable
 x = sp.symbols('x')
-
 deg_r = 0
 while deg_r < DEGREE:
     # Define the polynomials
     P, Q = generate_polynomial(degree=DEG_P, var=x), generate_polynomial(degree=DEG_Q, var=x)
     R = expand(P.subs(x, Q))
+    # Get r's coefficients
+    Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64).to(DEVICE)
+
     # Find the degree of R
     deg_r = R.as_poly(x).degree()
 
@@ -51,41 +45,29 @@ with open(OUTPUT_FILE, "w") as f:
     f.write(f"R(x): {present_result(R)}\n")
 
 # Initialize the model
-model = PolynomialDecomposition(degree=DEGREE, deg_q=3).to(DEVICE)
+model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
 # Define the optimizer
 optimizer = optim.Adam(model.parameters(), lr=LR)
 
 # Define loss function
-loss_reg_fn = custom_loss
-loss_mse_fn = torch.nn.MSELoss()
-
-# Define training data
-X = torch.linspace(-1 * VAR, VAR, SAMPLES, dtype=torch.float64).to(DEVICE)
-f = sp.lambdify(x, R, modules=["numpy"])
-y = torch.tensor(f(X.cpu().numpy()), dtype=torch.float64, requires_grad=True).to(DEVICE)
+loss_fn = torch.nn.L1Loss()
 
 # Set a list of loss functions
 losses = []
-mse_losses, reg_losses = [], []
 count, min_loss, best_epoch = 0, float("inf"), -1
 # Build a training loop
 for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
+    # Training mode
     model.train()
 
     # Forward pass
     optimizer.zero_grad()
-    output = model(X)
+    output = model()
 
     # Compute loss
-    mse_loss, reg_loss = loss_mse_fn(output, y), loss_reg_fn(model)
-    if EPOCHS < SWITCH:
-        loss = mse_loss + LAMBDA * reg_loss
-    else:
-        loss = mse_loss
+    loss = loss_fn(output, Rs)
     losses.append(loss.item())
-    mse_losses.append(mse_loss.item())
-    reg_losses.append(reg_loss.item() * LAMBDA)
 
     # Backward pass and optimization
     loss.backward()
@@ -106,12 +88,11 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         break
 
     # Plot the loss
-    if epoch % int(5e3) == 0:
-        plot_loss(losses, save=PLOT1_PATH)
-        plot_losses(mse_losses, reg_losses, label1="MSE Loss", label2="REG Loss", save=PLOT2_PATH)
+    if epoch % 400 == 0:
+        plot_loss(losses, save=LOSS_PLOT)
 
     # Evaluation
-    if epoch % int(3e4) == 0:
+    if epoch % (EPOCHS // 100) == 0:
         model.eval()
         P_weights = model.P.detach().cpu().numpy()
         Q_weights = model.Q.detach().cpu().numpy()
@@ -125,20 +106,10 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             f.write(f"Restored Q(x): {present_result(restored_q)}\n")
             f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")
 
-    if epoch % int(1e4) == 0 and epoch >= SWITCH:
-        # Round all weights of the model
-        model.P.data = torch.round(model.P.data)
-        model.Q.data = torch.round(model.Q.data)
-
-# Plot the losses for the last time
-plot_loss(losses, save=PLOT1_PATH)
-plot_losses(mse_losses, reg_losses, label1="MSE Loss", label2="REG Loss", save=PLOT2_PATH)
+plot_loss(losses, save=LOSS_PLOT)
 
 # Load the best model
 model.load_state_dict(torch.load(MODEL_PATH))
-# Round all weights of the model
-model.P.data = torch.round(model.P.data)
-model.Q.data = torch.round(model.Q.data)
 
 # Final evaluation
 model.eval()
@@ -148,7 +119,7 @@ restored_p = sum(P_weights[i] * x ** i for i in range(len(P_weights)))
 restored_q = sum(Q_weights[i] * x ** i for i in range(len(Q_weights)))
 with open(OUTPUT_FILE, "a") as f:
     f.write("\n" + "-" * 50 + "\n")
-    f.write("Final Results:\n")
+    f.write(f"Epoch {best_epoch} ({(best_epoch / EPOCHS * 100):.3f}%): Loss = {min_loss:.3f}\n")
     f.write(f"Restored P(x): {present_result(restored_p)}\n")
     f.write(f"Restored Q(x): {present_result(restored_q)}\n")
     f.write(f"Restored R(x): {present_result(expand(restored_p.subs(x, restored_q)))}\n")

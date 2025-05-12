@@ -36,7 +36,7 @@ def recover_p_from_composition(PQ, Q, var=sp.Symbol('x')):
     solution = sp.solve(eqns, coeffs)
 
     # Substitute solution into P(x)
-    P_final = sp.Poly(Px.subs(solution), x)
+    P_final = sp.Poly(Px.subs(solution), x).as_expr()
 
     return P_final
 
@@ -77,45 +77,29 @@ def recover_Q_from_composition(PQx_expr, Px_expr, degree_Q_guess, var=sp.Symbol(
     Qx_final = sum(solution[q] * x ** i for i, q in enumerate(q_coeffs))
     return sp.Poly(Qx_final, x)
 
+def main():
+    # Create symbols
+    x, y = symbols('x y')
 
-# Create symbols
-x, y = symbols('x y')
+    # Define the polynomials
+    deg_Q, deg_P = 3, 5
+    Q = 2*x^3
+    PQ = 64*x^15 + 4*x^6 - 1
 
-# Define the polynomials
-deg_Q, deg_P = 5, 5
-Q = generate_polynomial(deg_Q, x)
-P = generate_polynomial(deg_P, x)
-PQ = expand(P.subs(x, Q))
+    print("P(Q(x)):")
+    present_result(PQ)
 
-print("P(Q(x)):")
-present_result(PQ)
+    # Recover P(x)
+    start = time.time()
+    P_recovered = recover_p_from_composition(PQ, Q, x)
+    end = time.time()
+    print("Took", end - start, "seconds to recover P(x).")
 
-# Recover P(x)
-start = time.time()
-P_recovered = recover_p_from_composition(PQ, Q, x)
-end = time.time()
-print("Took", end - start, "seconds to recover P(x).")
+    print("\n", "-" * 50, "\n")
 
-print("\n", "-" * 50, "\n")
-
-print("P(x):")
-present_result(P)
-print("Recovered P(x):")
-# convert P recovered to expression
-P_recovered = P_recovered.as_expr()
-present_result(P_recovered)
-
-print("\n", "-" * 50, "\n")
-
-# Recover Q(x)
-start = time.time()
-Q_recovered = recover_Q_from_composition(PQ, P, deg_Q, x)
-end = time.time()
-print("Took", end - start, "seconds to recover Q(x).")
-
-print("Q(x):")
-present_result(Q)
-print("Recovered Q(x):")
-# convert Q recovered to expression
-Q_recovered = Q_recovered.as_expr()
-present_result(Q_recovered)
+    print("P(x):")
+    present_result(P)
+    print("Recovered P(x):")
+    # convert P recovered to expression
+    P_recovered = P_recovered.as_expr()
+    present_result(P_recovered)
