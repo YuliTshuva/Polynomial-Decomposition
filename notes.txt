@@ -1,2 +1,0 @@
-Add a loss element of output(0) - R(0). That way you will learn better a_0 and as an outcome, the other coefficients will be learned better too.
-Try to add an extremely gentle learning process at the end of the training to tune the output such that P(Q) = R.
