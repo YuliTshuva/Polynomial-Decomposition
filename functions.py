@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import sympy as sp
 from sympy import expand
+import torch
 
 rcParams["font.family"] = "Times New Roman"
 
@@ -18,10 +19,13 @@ def generate_polynomial(degree, var):
     return polynomial
 
 
-def plot_loss(losses, save=None, show=False):
+def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear"):
     plt.figure()
     # Plot in logarithmic scale
-    # plt.yscale("log")
+    if mode == "log":
+        plt.yscale("log")
+    else:
+        plt.ylim(0, max(losses) * 1.1)
     plt.plot(range(len(losses)), losses, color="salmon")
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)

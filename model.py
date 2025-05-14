@@ -89,6 +89,8 @@ def custom_loss(model):
 class PolynomialSearch(nn.Module):
     """
     Polynomial decomposition using PyTorch.
+
+    If the initialization is good, it is perfect. Else it will just not work.
     """
 
     def __init__(self, degree: int, deg_q: int = None):

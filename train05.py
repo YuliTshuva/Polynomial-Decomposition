@@ -21,9 +21,9 @@ LR = 1e-1
 EARLY_STOPPING, MIN_CHANGE = int(1e3), 1e-1
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-OUTPUT_FILE = join("output", "polynomials5.txt")
-LOSS_PLOT = join("output", "loss5.png")
-MODEL_PATH = join("output", "model5.pth")
+OUTPUT_FILE = join("output", "polynomials6.txt")
+LOSS_PLOT = join("output", "loss6.png")
+MODEL_PATH = join("output", "model6.pth")
 
 # Define variable
 x = sp.symbols('x')
@@ -89,7 +89,7 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
             break
         else:
             print(f"Reducing learning rate at epoch {epoch}")
-            LR /= 10
+            LR = LR / 10
             scheduler.step()
             count = 0
             MIN_CHANGE /= 10
@@ -99,12 +99,14 @@ for epoch in tqdm(range(EPOCHS), desc="Training", unit="epoch", total=EPOCHS):
         plot_loss(losses, save=LOSS_PLOT)
 
     # Evaluation
-    if epoch % (1 * EPOCHS // 100) == 0:
+    if epoch % 400 == 0:
         with open(OUTPUT_FILE, "w") as f:
             f.write(initial_string)
             f.write("\n" + "-" * 50 + "\n")
             f.write(f"Epoch {epoch} ({int(epoch / EPOCHS * 100)}%): Loss = {loss.item():.3f}\n")
-            f.write(f"R(x): {torch.round(output, decimals=2)}\n")
+            f.write(f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n")
+            f.write(f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n")
+            f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
 
 plot_loss(losses, save=LOSS_PLOT)
 
