@@ -9,21 +9,19 @@ import torch.optim as optim
 from model import PolynomialSearch
 import sympy as sp
 from functions import *
-from tqdm.auto import tqdm
 from os.path import join
 import os
 import threading
-import time
 import shutil
 
 # Hyperparameters
 EPOCHS = int(1e5)
 LR = 1e-1
-EARLY_STOPPING, MIN_CHANGE = int(1e3), 1e-1
+EARLY_STOPPING, MIN_CHANGE = int(4e2), 1e-1
 DEG_P, DEG_Q = 5, 3
 
 # Constants
-NUM_THREADS = 3
+NUM_THREADS = 1
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_6")
@@ -180,7 +178,8 @@ def start_new_thread(i):
 
 def main():
     # Delete the results from the old run
-    shutil.rmtree(WORKING_DIR)
+    if os.path.exists(WORKING_DIR):
+        shutil.rmtree(WORKING_DIR)
 
     # Run the threads for this run
     for i in range(NUM_THREADS):

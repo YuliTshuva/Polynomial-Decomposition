@@ -1,29 +1,27 @@
 """
 Yuli Tshuva
 Addressing the coefficients directly.
+Nice. It gets really close in terms of the coefficients of one of the polynomials.
+The problem is that it get stuck in low loss because of the conflict between the regularization and the decomposition.
 """
 
 # Imports
 import torch
 import torch.optim as optim
 from model import PolynomialSearch
-import sympy as sp
 from functions import *
-from tqdm.auto import tqdm
 from os.path import join
 import os
 import threading
-import time
 import shutil
 
 # Hyperparameters
 EPOCHS = int(1e5)
 LR = 1e-1
-EARLY_STOPPING, MIN_CHANGE = int(3e2), 1e-1
-LAMBDA = 300
+EARLY_STOPPING, MIN_CHANGE = int(4e2), 1e-1
+START_REGULARIZATION = 30
 
 # Constants
-DEG_P, DEG_Q = 5, 3
 NUM_THREADS = 1
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,6 +34,7 @@ MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
 TERMINATE_THREAD_FILE = lambda i: join(THREAD_DIR(i), "terminate.txt")
 SUCCESS_FILE = join(WORKING_DIR, "success.txt")
+DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 
 # Define variable
@@ -60,15 +59,18 @@ def train(train_id: int):
     os.makedirs(THREAD_DIR(train_id), exist_ok=True)
 
     # Create output file in the output directory
-    initial_string = f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
-    with open(OUTPUT_FILE(train_id), "w") as f:
-        f.write(initial_string)
+    initial_string = "Generated Polynomials:\n"
+    initial_string += f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
 
     # Initialize the model
     model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
+    # Initialize the model parameters
+    with open(OUTPUT_FILE(train_id), "w") as f:
+        f.write(initial_string)
+
     # Define the optimizer
-    lr = LR
+    lr, min_change = LR, MIN_CHANGE
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
@@ -77,7 +79,7 @@ def train(train_id: int):
 
     # Set a list of loss functions
     losses = []
-    count, min_loss, best_epoch = 0, float("inf"), -1
+    count, min_loss = 0, float("inf")
     # Build a training loop
     for epoch in range(EPOCHS):
         # Training mode
@@ -88,7 +90,10 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        loss = loss_fn(output, Rs) + LAMBDA * model.regularization()
+        if epoch >= START_REGULARIZATION:
+            loss = loss_fn(output, Rs) + model.regularization()
+        else:
+            loss = loss_fn(output, Rs)
         losses.append(loss.item())
 
         # Backward pass and optimization
@@ -96,7 +101,7 @@ def train(train_id: int):
         optimizer.step()
 
         # Early stopping
-        if loss.item() + MIN_CHANGE < min_loss:
+        if loss.item() + min_change < min_loss:
             count = 0
             min_loss = loss.item()
             # Save the model in the output directory
@@ -121,12 +126,13 @@ def train(train_id: int):
                 lr = lr / 10
                 scheduler.step()
                 count = 0
+                min_change /= 10
 
         # Plot the loss
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id))
 
-        # if (epoch >= 500 and min_loss > 1) or (epoch >= 100 and min_loss > 5):
+        # if (epoch >= 500 and min_loss > 2.5) or (epoch >= 100 and min_loss > 10):
         #     print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
         #     start_new_thread(train_id)
         #     return
@@ -146,34 +152,15 @@ def train(train_id: int):
             print(f"[Thread {train_id}]: Stopping thread.")
             return
 
-        if min_loss < 0.5:
-            print(f"[Thread {train_id}]: Found potential solution.")
+        if min_loss < 1e-1:
+            print(f"[Thread {train_id}]: Found optimal solution.")
             break
-
-    # Save the model in the output directory
-    torch.save(model.state_dict(), MODEL_PATH(train_id))
 
     # Add the minimum loss to the list of losses
     losses.append(min_loss)
 
     # Plot the losses
     plot_loss(losses, save=LOSS_PLOT(train_id))
-
-    # Get P and Q
-    model_P = torch.round(model.P.detach()).tolist()
-    model_Q = torch.round(model.Q.detach()).tolist()
-    model_P, model_Q = sum([model_P[i] * x ** i for i in range(len(model_P))]), sum(
-        [model_Q[i] * x ** i for i in range(len(model_Q))])
-    model_R = expand(model_P.subs(x, model_Q))
-
-    # Compare model_R with R
-    diff = model_R - R
-    if diff.subs(x, 0) != 0:
-        print(f"[Thread {train_id}]: The model is not a solution.")
-        start_new_thread(train_id)
-        return
-    else:
-        print(f"[Thread {train_id}]: The model is a solution.")
 
     # Save the success file
     with open(SUCCESS_FILE, "w") as f:
