@@ -77,29 +77,58 @@ def recover_Q_from_composition(PQx_expr, Px_expr, degree_Q_guess, var=sp.Symbol(
     Qx_final = sum(solution[q] * x ** i for i, q in enumerate(q_coeffs))
     return sp.Poly(Qx_final, x)
 
+
+def recover_both_polynomials(PQ, deg_P, deg_Q, var):
+    x = var
+
+    # Define symbolic coefficients for Q(x)
+    q_coeffs = sp.symbols(f'q0:{deg_Q + 1}')
+    p_coeffs = symbols(f'p0:{deg_P + 1}')  # a0, a1, ..., a_deg_P
+    Qx_expr = sum(q_coeffs[i] * x ** i for i in range(deg_Q + 1))
+    Px = sum(p_coeffs[i] * x ** i for i in range(deg_P + 1))
+
+    # Compose P(Q(x))
+    Px_poly = sp.Poly(Px, x)
+    P_of_Q = Px.subs(x, Qx_expr).expand()
+    P_of_Q_poly = sp.Poly(P_of_Q, x)
+    PQx_poly = sp.Poly(PQ, x)
+
+    # Match coefficients
+    max_deg = max(P_of_Q_poly.degree(), PQx_poly.degree())
+    eqns = []
+    for deg in range(max_deg + 1):
+        lhs = P_of_Q_poly.coeff_monomial(x ** deg)
+        rhs = PQx_poly.coeff_monomial(x ** deg)
+        eqns.append(sp.Eq(lhs, rhs))
+
+    # Solve for q_coeffs
+    solution = sp.solve(eqns, list(q_coeffs)+list(p_coeffs))
+
+    if not solution:
+        return None  # Could not solve for Q
+
+    # Normalize the solution format
+    if isinstance(solution, list):
+        solution = solution[0]  # take first if it's a list of solutions
+    if isinstance(solution, tuple):
+        solution = dict(zip(q_coeffs, solution))  # convert tuple to dict
+
+    Qx_final = sum(solution[q] * x ** i for i, q in enumerate(q_coeffs))
+    return sp.Poly(Qx_final, x)
+
+
 def main():
     # Create symbols
     x, y = symbols('x y')
 
     # Define the polynomials
-    deg_Q, deg_P = 3, 5
-    Q = 2*x^3
-    PQ = 64*x^15 + 4*x^6 - 1
+    P = generate_polynomial(3, var=x)
+    Q = generate_polynomial(3, var=x)
+    R = expand(P.subs(x, Q))
 
-    print("P(Q(x)):")
-    present_result(PQ)
+    recover_both_polynomials(R, 3, 3, var=x)
+    pass
 
-    # Recover P(x)
-    start = time.time()
-    P_recovered = recover_p_from_composition(PQ, Q, x)
-    end = time.time()
-    print("Took", end - start, "seconds to recover P(x).")
 
-    print("\n", "-" * 50, "\n")
-
-    print("P(x):")
-    present_result(P)
-    print("Recovered P(x):")
-    # convert P recovered to expression
-    P_recovered = P_recovered.as_expr()
-    present_result(P_recovered)
+if __name__ == "__main__":
+    main()

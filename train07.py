@@ -19,14 +19,15 @@ import shutil
 # Hyperparameters
 EPOCHS = int(1e5)
 LR = 1e-1
-EARLY_STOPPING, MIN_CHANGE = int(1e3), 1e-1
-DEG_P, DEG_Q = 5, 3
+EARLY_STOPPING, MIN_CHANGE = int(3e2), 1e-1
+LAMBDA = 300
 
 # Constants
-NUM_THREADS = 3
+DEG_P, DEG_Q = 5, 3
+NUM_THREADS = 1
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_6")
+WORKING_DIR = join("output_dirs", "train_7")
 STOP_FILE = join(WORKING_DIR, "stop.txt")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
@@ -59,22 +60,15 @@ def train(train_id: int):
     os.makedirs(THREAD_DIR(train_id), exist_ok=True)
 
     # Create output file in the output directory
-    initial_string = "Generated Polynomials:\n"
-    initial_string += f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
-    initial_string += "\nInitialization:\n"
-
-    # Initialize the model
-    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
-    # Get the model's parameters
-    initial_string += f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n"
-    initial_string += f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n"
-    initial_string += f"R(x): {torch.round(model(), decimals=3).tolist()[::-1]}\n"
-
+    initial_string = f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
     with open(OUTPUT_FILE(train_id), "w") as f:
         f.write(initial_string)
 
+    # Initialize the model
+    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+
     # Define the optimizer
-    lr, min_change = LR, MIN_CHANGE
+    lr = LR
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
@@ -94,7 +88,7 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        loss = loss_fn(output, Rs)
+        loss = loss_fn(output, Rs) + LAMBDA * model.regularization()
         losses.append(loss.item())
 
         # Backward pass and optimization
@@ -102,8 +96,7 @@ def train(train_id: int):
         optimizer.step()
 
         # Early stopping
-        if loss.item() + min_change < min_loss:
-            best_epoch = epoch
+        if loss.item() + MIN_CHANGE < min_loss:
             count = 0
             min_loss = loss.item()
             # Save the model in the output directory
@@ -128,16 +121,15 @@ def train(train_id: int):
                 lr = lr / 10
                 scheduler.step()
                 count = 0
-                min_change /= 10
 
         # Plot the loss
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id))
 
-        if (epoch >= 500 and min_loss > 2.5) or (epoch >= 100 and min_loss > 10):
-            print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
-            start_new_thread(train_id)
-            return
+        # if (epoch >= 500 and min_loss > 1) or (epoch >= 100 and min_loss > 5):
+        #     print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
+        #     start_new_thread(train_id)
+        #     return
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
@@ -154,15 +146,34 @@ def train(train_id: int):
             print(f"[Thread {train_id}]: Stopping thread.")
             return
 
-        if min_loss < 1e-1:
-            print(f"[Thread {train_id}]: Found optimal solution.")
+        if min_loss < 0.5:
+            print(f"[Thread {train_id}]: Found potential solution.")
             break
+
+    # Save the model in the output directory
+    torch.save(model.state_dict(), MODEL_PATH(train_id))
 
     # Add the minimum loss to the list of losses
     losses.append(min_loss)
 
     # Plot the losses
     plot_loss(losses, save=LOSS_PLOT(train_id))
+
+    # Get P and Q
+    model_P = torch.round(model.P.detach()).tolist()
+    model_Q = torch.round(model.Q.detach()).tolist()
+    model_P, model_Q = sum([model_P[i] * x ** i for i in range(len(model_P))]), sum(
+        [model_Q[i] * x ** i for i in range(len(model_Q))])
+    model_R = expand(model_P.subs(x, model_Q))
+
+    # Compare model_R with R
+    diff = model_R - R
+    if diff.subs(x, 0) != 0:
+        print(f"[Thread {train_id}]: The model is not a solution.")
+        start_new_thread(train_id)
+        return
+    else:
+        print(f"[Thread {train_id}]: The model is a solution.")
 
     # Save the success file
     with open(SUCCESS_FILE, "w") as f:
@@ -180,7 +191,8 @@ def start_new_thread(i):
 
 def main():
     # Delete the results from the old run
-    shutil.rmtree(WORKING_DIR)
+    if os.path.exists(WORKING_DIR):
+        shutil.rmtree(WORKING_DIR)
 
     # Run the threads for this run
     for i in range(NUM_THREADS):

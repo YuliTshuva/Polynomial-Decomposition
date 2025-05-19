@@ -107,8 +107,8 @@ class PolynomialSearch(nn.Module):
         self.deg_p = degree // deg_q
 
         # Define the coefficients for P and Q
-        self.P = nn.Parameter(torch.randn(self.deg_p + 1, dtype=torch.float64))
-        self.Q = nn.Parameter(torch.randn(self.deg_q + 1, dtype=torch.float64))
+        self.P = nn.Parameter(torch.randn(self.deg_p + 1, dtype=torch.float64) / 1000)
+        self.Q = nn.Parameter(torch.randn(self.deg_q + 1, dtype=torch.float64) / 1000)
 
         # Define the coefficients
         self.x = sp.symbols("x")
@@ -138,3 +138,10 @@ class PolynomialSearch(nn.Module):
                             temp *= torch.tensor(float(mul), dtype=torch.float64)
                 output[i] += temp
         return output
+
+    def regularization(self) -> torch.Tensor:
+        # Penalize distance from nearest integer
+        diff = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))
+        # Normalize diff
+        diff /= (self.deg_p + self.deg_q + 2)
+        return diff
