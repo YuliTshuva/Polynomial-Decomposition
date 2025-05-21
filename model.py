@@ -139,9 +139,39 @@ class PolynomialSearch(nn.Module):
                 output[i] += temp
         return output
 
+    def efficient_loss(self, q_list, p_list):
+        output = torch.zeros(len(self.rs), dtype=torch.float64)
+        for i, r in enumerate(self.rs):
+            for summed in r.split(" + "):
+                temp = 1
+                for mul in summed.split("*"):
+                    if "^" in mul:
+                        mul = mul.split("^")
+                        temp *= q_list[self.qs_to_idx[mul[0]]] ** int(mul[1])
+                    else:
+                        if mul in self.ps_to_idx:
+                            temp *= p_list[self.ps_to_idx[mul]]
+                        elif mul in self.qs_to_idx:
+                            temp *= q_list[self.qs_to_idx[mul]]
+                        else:
+                            temp *= float(mul)
+                output[i] += temp
+        return output
+
     def regularization(self) -> torch.Tensor:
         # Penalize distance from nearest integer
-        diff = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))
-        # Normalize diff
-        # diff /= (self.deg_p + self.deg_q + 2)
-        return diff
+        reg = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))
+        reg /= len(self.P) + len(self.Q)
+        return reg
+
+    def sparse_optimization(self) -> torch.Tensor:
+        # Penalize weights' absolute value
+        reg = torch.sum(torch.abs(self.P)) + torch.sum(torch.abs(self.Q))
+        reg /= len(self.P) + len(self.Q)
+        return reg
+
+    def non_zero_regularization(self) -> torch.Tensor:
+        # Penalize non zero weights
+        reg = torch.sum(torch.pow(torch.abs(self.P), 1 / 5)) + torch.sum(torch.pow(torch.abs(self.Q), 1 / 5))
+        reg /= len(self.P) + len(self.Q)
+        return reg
