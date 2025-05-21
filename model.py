@@ -139,25 +139,6 @@ class PolynomialSearch(nn.Module):
                 output[i] += temp
         return output
 
-    def efficient_loss(self, q_list, p_list):
-        output = torch.zeros(len(self.rs), dtype=torch.float64)
-        for i, r in enumerate(self.rs):
-            for summed in r.split(" + "):
-                temp = 1
-                for mul in summed.split("*"):
-                    if "^" in mul:
-                        mul = mul.split("^")
-                        temp *= q_list[self.qs_to_idx[mul[0]]] ** int(mul[1])
-                    else:
-                        if mul in self.ps_to_idx:
-                            temp *= p_list[self.ps_to_idx[mul]]
-                        elif mul in self.qs_to_idx:
-                            temp *= q_list[self.qs_to_idx[mul]]
-                        else:
-                            temp *= float(mul)
-                output[i] += temp
-        return output
-
     def regularization(self) -> torch.Tensor:
         # Penalize distance from nearest integer
         reg = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))

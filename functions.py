@@ -6,6 +6,7 @@ from sympy import expand
 import torch
 
 rcParams["font.family"] = "Times New Roman"
+EFFICIENT_MODEL_PATH = "efficient_model.py"
 
 
 def present_result(result):
@@ -19,14 +20,14 @@ def generate_polynomial(degree, var):
     return polynomial
 
 
-def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear"):
+def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear", plot_last=0):
     plt.figure()
     # Plot in logarithmic scale
     if mode == "log":
         plt.yscale("log")
     else:
         plt.ylim(0, max(losses) * 1.1)
-    plt.plot(range(len(losses)), losses, color="salmon")
+    plt.plot(range(len(losses))[-plot_last:], losses[-plot_last:], color="salmon")
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)
     plt.ylabel("Loss", fontsize=15)
@@ -77,3 +78,57 @@ def express_with_coefficients(ps, qs, var):
         coeffs[i] = c.replace("**", "^")
 
     return coeffs
+
+
+def create_efficient_model(exp_list):
+    # Handle power sign
+    for i, exp in enumerate(exp_list):
+        exp_list[i] = exp.replace("^", "**")
+
+    # Parse expressions
+    for i in range(len(exp_list)):
+        # Replace vars with params
+        exp_list[i] = exp_list[i].replace("p", "self.P[")
+        exp_list[i] = exp_list[i].replace("q", "self.Q[")
+        # Create a string for receiving
+        new_exp = ""
+        # Iterate through the expression to find unclosed brackets
+        j, condition = 0, True
+        for j in range(len(exp_list[i])):
+            char = exp_list[i][j]
+            if char == "[":
+                condition = False
+                new_exp += char
+                continue
+            if not condition:
+                if not char.isdigit():
+                    new_exp += "]" + char
+                    condition = True
+                else:
+                    new_exp += char
+            else:
+                new_exp += char
+
+        if not condition:
+            new_exp += "]"
+
+        # Update the expression list
+        exp_list[i] = new_exp
+
+    # Implement the model's forward function
+    forward_function = ""
+    for i, exp in enumerate(exp_list):
+        if i > 0:
+            forward_function += " " * 8
+        forward_function += f"output[{i}] = " + exp + "\n"
+
+    # Open the model file
+    with open("efficient_model_template.py", "r") as file:
+        model = file.read()
+
+    # Assign the forward in the model
+    model = model.replace("# TO DO", forward_function)
+
+    # Open the model file
+    with open("efficient_model.py", "w") as file:
+        file.write(model)

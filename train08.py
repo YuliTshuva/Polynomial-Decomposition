@@ -1,8 +1,6 @@
 """
 Yuli Tshuva
-Addressing the coefficients directly.
-Nice. It gets really close in terms of the coefficients of one of the polynomials.
-The problem is that it get stuck in low loss because of the conflict between the regularization and the decomposition.
+Boosting performance by creating efficient model.
 """
 
 # Imports
@@ -18,8 +16,9 @@ import shutil
 # Hyperparameters
 EPOCHS = int(1e5)
 LR = 1e-1
-EARLY_STOPPING, MIN_CHANGE = int(4e2), 5e-1
-START_REGULARIZATION = 30
+EARLY_STOPPING, MIN_CHANGE = int(4e2), 1e-1
+START_REGULARIZATION = 300
+LAMBDA1, LAMBDA2 = 1, 1
 
 # Constants
 NUM_THREADS = 1
@@ -64,6 +63,13 @@ def train(train_id: int):
 
     # Initialize the model
     model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    # Get the model's expression list
+    exp_list = model.rs
+    # Create the efficient version of the model
+    create_efficient_model(exp_list)
+    # Import the efficient model created
+    from efficient_model import EfficientPolynomialSearch
+    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -91,7 +97,7 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = loss_fn(output, Rs) + model.regularization()
+            loss = loss_fn(output, Rs) + LAMBDA2 * model.sparse_optimization()
         else:
             loss = loss_fn(output, Rs)
         losses.append(loss.item())
@@ -100,7 +106,6 @@ def train(train_id: int):
         loss.backward()
         optimizer.step()
 
-        # Early stopping
         if loss.item() + min_change < min_loss:
             count = 0
             min_loss = loss.item()
@@ -117,6 +122,7 @@ def train(train_id: int):
         else:
             count += 1
 
+        # Early stopping
         if count > EARLY_STOPPING:
             if lr == 1e-5:
                 print(f"[Thread {train_id}]: Early stopping at epoch {epoch}")
@@ -130,8 +136,16 @@ def train(train_id: int):
                 min_change /= 10
 
         # Plot the loss
-        if epoch % SHOW_EVERY == 0:
-            plot_loss(losses, save=LOSS_PLOT(train_id))
+        if epoch % SHOW_EVERY == 0 and epoch < 500:
+            if epoch <= 500:
+                plot_loss(losses, save=LOSS_PLOT(train_id))
+            else:
+                plot_loss(losses, save=LOSS_PLOT(train_id), plot_last=300)
+
+        if (epoch >= 500 and min_loss > 2.5) or (epoch >= 100 and min_loss > 10):
+            print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
+            start_new_thread(train_id)
+            return
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
