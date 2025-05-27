@@ -172,7 +172,7 @@ def train(train_id: int):
             if solution:
                 print("Found THE solution!")
                 print(f"p(x) = {solution}.")
-                print(f"Q(x) = {torch.round(model.Q).tolist()}.")
+                print(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}.")
                 # Stop all other events
                 stop_event.set()
                 return

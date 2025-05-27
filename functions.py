@@ -4,9 +4,16 @@ from matplotlib import rcParams
 import sympy as sp
 from sympy import expand
 import torch
+import time
 
 rcParams["font.family"] = "Times New Roman"
 EFFICIENT_MODEL_PATH = "efficient_model.py"
+
+
+def get_time():
+    jerusalem_tz = time.tzname[0]
+    current_time = time.strftime(f"%H:%M:%S")
+    return current_time
 
 
 def present_result(result):
