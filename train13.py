@@ -9,7 +9,6 @@ from model import PolynomialSearch
 from functions import *
 from os.path import join
 import os
-import threading
 import shutil
 import sympy as sp
 import pickle
@@ -28,14 +27,11 @@ RESET_ENVIRONMENT = True
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_13")
-STOP_FILE = join(WORKING_DIR, "stop.txt")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-TERMINATE_THREAD_FILE = lambda i: join(THREAD_DIR(i), "terminate.txt")
-SUCCESS_FILE = join(WORKING_DIR, "success.txt")
 DIVISORS_DATA = join("data", "divisors.pkl")
 TIMEOUT = 60 * 10  # 10 minutes
 
@@ -59,11 +55,6 @@ while deg_r < DEGREE:
     # Find the degree of R
     deg_r = R.as_poly(x).degree()
 
-# Stop flag
-stop_event = threading.Event()
-# Lock for thread safety
-lock = threading.Lock()
-
 
 def train(train_id: int):
     # Create the working directory
@@ -80,12 +71,11 @@ def train(train_id: int):
     model = PolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
     # Get the model's expression list
     exp_list = model.rs
-    with lock:
-        # Create the efficient version of the model
-        create_efficient_model(exp_list)
-        # Import the efficient model created
-        from efficient_model import EfficientPolynomialSearch
-        model = EfficientPolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
+    # Create the efficient version of the model
+    create_efficient_model(exp_list)
+    # Import the efficient model created
+    from efficient_model import EfficientPolynomialSearch
+    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -141,7 +131,7 @@ def train(train_id: int):
                 f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
                 f.write(f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n")
                 f.write(f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n")
-                f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
+                f.write(f"R(x): {torch.round(output, decimals=2).tolist()[::-1]}\n")
                 diffs = torch.round(torch.abs((output - Rs) * WEIGHTS), decimals=3).tolist()[::-1]
                 f.write(f"diffs: {diffs}\n")
         else:
@@ -151,8 +141,7 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr == 1e-5:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                start_new_thread(train_id)
-                return
+                return False
             else:
                 print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
@@ -168,23 +157,13 @@ def train(train_id: int):
                 plot_loss(losses, save=LOSS_PLOT(train_id), plot_last=300)
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
-            print(f"[{get_time()}][Thread {train_id}]: Stopping thread and Starting a new one.")
-            os.remove(STOP_THREAD_FILE(train_id))
-            start_new_thread(train_id)
-            return
-
-        if os.path.exists(TERMINATE_THREAD_FILE(train_id)):
-            print(f"[{get_time()}][Thread {train_id}]: Terminating thread.")
-            os.remove(TERMINATE_THREAD_FILE(train_id))
-            return
-
-        if stop_event.is_set():
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
-            return
+            os.remove(STOP_THREAD_FILE(train_id))
+            return False
 
         if min_loss < 1e-1:
             print(f"[{get_time()}][Thread {train_id}]: Found optimal solution.")
-            break
+            return True
 
         if epoch >= 800 and epoch % 200 == 0:
             solution, ps_var = check_solution(torch.round(model.Q).tolist())
@@ -202,28 +181,9 @@ def train(train_id: int):
                     f.write(f"Epoch {epoch}: Loss = 0\n")
                     f.write(f"p(x) = {ps_result}.\n")
                     f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                # Stop all other events
-                stop_event.set()
-                return
+                return True
 
-    # Add the minimum loss to the list of losses
-    losses.append(min_loss)
-
-    # Plot the losses
-    plot_loss(losses, save=LOSS_PLOT(train_id))
-
-    # Save the success file
-    with open(SUCCESS_FILE, "w") as f:
-        f.write(f"Success at thread: {train_id}.")
-
-    # Stop all other events
-    stop_event.set()
-
-
-def start_new_thread(i):
-    if not os.path.exists(SUCCESS_FILE):
-        thread = threading.Thread(target=train, args=(i,))
-        thread.start()
+    return False
 
 
 def check_solution(qs):
@@ -251,29 +211,19 @@ def main():
 
     # Run the threads for this run
     divisors = DIVISORS[DEGREE]
-    for deg_q in divisors:
-        if deg_q > DEGREE // 2 or deg_q >= 10:
-            break
-        thread = threading.Thread(target=train, args=(deg_q,))
-        thread.start()
+    divisors = [d for i, d in enumerate(divisors) if i < (len(divisors)+1) // 2 and d <= 10]
 
     # Set a timer for timeout
     start = time.time()
-    while True:
-        if os.path.exists(STOP_FILE):
-            stop_event.set()
-            print("Stopping all threads.")
-            break
 
-        threads = threading.enumerate()
-        running_threads = [t for t in threads if t is not threading.main_thread()]
-        if not running_threads:
-            print(f"There are no running threads.")
-            break
+    # Train until a decomposition is found or the time is out
+    found_decomposition = False
+    i = 0
+    while not found_decomposition and time.time() - start < TIMEOUT:
+        found_decomposition = train(divisors[i % len(divisors)])
+        i += 1
 
-        if time.time() - start > TIMEOUT:
-            print(f"Timeout reached. Stopping all threads.")
-            raise TimeoutError("Training took too long. Stopping all threads.")
+    print("Decomposition Found!")
 
 
 if __name__ == "__main__":
