@@ -2,6 +2,7 @@
 Yuli Tshuva
 Add solution checking.
 """
+import pickle
 
 # Imports
 import torch
@@ -116,7 +117,7 @@ def train(train_id: int):
             with open(OUTPUT_FILE(train_id), "w") as f:
                 f.write(initial_string)
                 f.write("\n" + "-" * 50 + "\n")
-                f.write(f"Epoch {epoch} ({int(epoch / EPOCHS * 100)}%): Loss = {loss.item():.3f}\n")
+                f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
                 f.write(f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n")
                 f.write(f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n")
                 f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
@@ -126,53 +127,58 @@ def train(train_id: int):
         # Early stopping
         if count > EARLY_STOPPING:
             if lr == 1e-5:
-                print(f"[Thread {train_id}]: Early stopping at epoch {epoch}")
+                print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 start_new_thread(train_id)
                 return
             else:
-                print(f"[Thread {train_id}]: Reducing learning rate at epoch {epoch}")
+                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
                 scheduler.step()
                 count = 0
                 min_change /= 10
 
         # Plot the loss
-        if epoch % SHOW_EVERY == 0 and epoch < 500:
+        if epoch % SHOW_EVERY == 0:
             if epoch <= 500:
                 plot_loss(losses, save=LOSS_PLOT(train_id))
             else:
                 plot_loss(losses, save=LOSS_PLOT(train_id), plot_last=300)
 
-        if (epoch >= 500 and min_loss > 2.5) or (epoch >= 100 and min_loss > 10):
-            print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
-            start_new_thread(train_id)
-            return
-
         if os.path.exists(STOP_THREAD_FILE(train_id)):
-            print(f"[Thread {train_id}]: Stopping thread and Starting a new one.")
+            print(f"[{get_time()}][Thread {train_id}]: Stopping thread and Starting a new one.")
             os.remove(STOP_THREAD_FILE(train_id))
             start_new_thread(train_id)
             return
 
         if os.path.exists(TERMINATE_THREAD_FILE(train_id)):
-            print(f"[Thread {train_id}]: Terminating thread.")
+            print(f"[{get_time()}][Thread {train_id}]: Terminating thread.")
             os.remove(TERMINATE_THREAD_FILE(train_id))
             return
 
         if stop_event.is_set():
-            print(f"[Thread {train_id}]: Stopping thread.")
+            print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             return
 
         if min_loss < 1e-1:
-            print(f"[Thread {train_id}]: Found optimal solution.")
+            print(f"[{get_time()}][Thread {train_id}]: Found optimal solution.")
             break
 
         if epoch >= 800 and epoch % 200 == 0:
-            solution = check_solution(torch.round(model.Q).tolist())
+            solution, ps_var = check_solution(torch.round(model.Q).tolist())
             if solution:
-                print("Found THE solution!")
-                print(f"p(x) = {solution}.")
-                print(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}.")
+                if isinstance(solution, list):
+                    solution = solution[0]
+                try:
+                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
+                except:
+                    continue
+                print(f"[{get_time()}][Thread {train_id}] Found THE solution!")
+                with open(OUTPUT_FILE(train_id), "w") as f:
+                    f.write(initial_string)
+                    f.write("\n" + "-" * 50 + "\n")
+                    f.write(f"Epoch {epoch}: Loss = 0\n")
+                    f.write(f"p(x) = {ps_result}.\n")
+                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
                 # Stop all other events
                 stop_event.set()
                 return
@@ -206,12 +212,12 @@ def check_solution(qs):
     # Create the equation
     eq = sp.Eq(p.subs(x, q), R)
     # Solve the equation
-    sol = sp.solve(eq, ps)
+    sol = sp.solve(eq, ps, dict=True)
     # Check if the solution is valid
     if sol:
-        return sol
+        return sol, ps
     else:
-        return False
+        return False, None
 
 
 def main():
