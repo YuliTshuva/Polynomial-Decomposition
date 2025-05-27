@@ -4,6 +4,7 @@ from matplotlib import rcParams
 import sympy as sp
 from sympy import expand
 import torch
+import torch.nn as nn
 import time
 
 rcParams["font.family"] = "Times New Roman"
@@ -11,7 +12,6 @@ EFFICIENT_MODEL_PATH = "efficient_model.py"
 
 
 def get_time():
-    jerusalem_tz = time.tzname[0]
     current_time = time.strftime(f"%H:%M:%S")
     return current_time
 
@@ -29,33 +29,18 @@ def generate_polynomial(degree, var):
 
 def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear", plot_last=0):
     plt.figure()
+    # Update the list
+    losses = losses[-plot_last:]
     # Plot in logarithmic scale
     if mode == "log":
         plt.yscale("log")
     else:
         plt.ylim(0, max(losses) * 1.1)
-    plt.plot(range(len(losses))[-plot_last:], losses[-plot_last:], color="salmon")
+    plt.plot(range(len(losses)), losses, color="salmon")
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)
     plt.ylabel("Loss", fontsize=15)
     plt.tight_layout()
-    if save:
-        plt.savefig(save)
-    if show:
-        plt.show()
-    plt.close()
-
-
-def plot_losses(l1, l2, label1, label2, save=None, show=False):
-    plt.figure()
-    # Plot in logarithmic scale
-    plt.yscale("log")
-    plt.plot(range(len(l1)), l1, color="hotpink", label=label1)
-    plt.plot(range(len(l2)), l2, color="royalblue", label=label2)
-    plt.title("Loss Function", fontsize=20)
-    plt.xlabel("Epochs", fontsize=15)
-    plt.ylabel("Loss", fontsize=15)
-    plt.legend()
     if save:
         plt.savefig(save)
     if show:
@@ -139,3 +124,17 @@ def create_efficient_model(exp_list):
     # Open the model file
     with open("efficient_model.py", "w") as file:
         file.write(model)
+
+
+def weighted_l1_loss(output, target, weights):
+    """
+    Args:
+        output: Tensor of shape (N,)
+        target: Tensor of shape (N,)
+        weights: Tensor of shape (N,)
+    Returns:
+        Scalar tensor (weighted L1 loss)
+    """
+    loss = torch.abs(output - target)
+    weighted_loss = loss * weights
+    return weighted_loss.mean()
