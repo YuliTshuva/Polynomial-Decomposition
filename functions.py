@@ -20,26 +20,27 @@ def present_result(result):
     return str(result).replace("**", "^").replace("*", "")
 
 
-def generate_polynomial(degree, var):
-    scale = 3
-    coeffs = [int(round(random.random() * 2 * scale - scale, 2)) for _ in range(degree + 1)]
+def generate_polynomial(degree, var, scale=3):
+    coeffs = [int(random.random() * 2 * scale - scale) for _ in range(degree + 1)]
     polynomial = sum(coeffs[i] * var ** i for i in range(degree + 1))
     return polynomial
 
 
 def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear", plot_last=0):
     plt.figure()
-    # Update the list
-    losses = losses[-plot_last:]
     # Plot in logarithmic scale
     if mode == "log":
         plt.yscale("log")
     else:
-        plt.ylim(0, max(losses) * 1.1)
-    plt.plot(range(len(losses)), losses, color="salmon")
+        plt.ylim(0, max(losses[-plot_last:]) * 1.1)
+    plt.plot(range(len(losses[-plot_last:])), losses[-plot_last:], color="salmon")
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)
     plt.ylabel("Loss", fontsize=15)
+    # Set the ticks labels to be 1000 to 1000 + plot_last
+    if plot_last > 0:
+        plt.xticks(ticks=range(0, plot_last, 50),
+                   labels=[str(el) for el in range(len(losses) - plot_last - 1, len(losses) - 1, 50)])
     plt.tight_layout()
     if save:
         plt.savefig(save)
