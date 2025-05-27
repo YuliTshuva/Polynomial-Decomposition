@@ -1,8 +1,9 @@
 """
 Yuli Tshuva
 Add solution checking.
+Sometimes work excellent and sometimes doesn't work at all.
+I'll address this issue in train10.py.
 """
-import pickle
 
 # Imports
 import torch
