@@ -14,13 +14,16 @@ import sympy as sp
 import pickle
 import random
 import time
+from tqdm.auto import tqdm
+import importlib.util
+import sys
 
 # Hyperparameters
 EPOCHS = int(1e6)
-LR = 1e-1
+LR, MIN_LR = 10, 1e-15
 EARLY_STOPPING, MIN_CHANGE = int(4e2), 1e-1
 START_REGULARIZATION = 300
-LAMBDA1, LAMBDA2 = 1, 1e1  # Weight of the sparsity, Weight of the largest coeffs
+LAMBDA1, LAMBDA2 = 1, 1e7  # Weight of the sparsity, Weight of the largest coeffs
 
 # Constants
 RESET_ENVIRONMENT = True
@@ -40,7 +43,8 @@ with open(DIVISORS_DATA, "rb") as f:
     DIVISORS = pickle.load(f)
 
 # Sample a degree for R
-DEGREE = random.choice(list(DIVISORS.keys()))
+# DEGREE = random.choice(list(DIVISORS.keys())[:20])
+DEGREE = 18
 print("Degree of R:", DEGREE)
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
 
@@ -73,9 +77,18 @@ def train(train_id: int):
     exp_list = model.rs
     # Create the efficient version of the model
     create_efficient_model(exp_list)
-    # Import the efficient model created
-    from efficient_model import EfficientPolynomialSearch
+
+    # Remove cached module if it exists
+    if "efficient_model" in sys.modules:
+        del sys.modules["efficient_model"]
+    spec = importlib.util.spec_from_file_location("efficient_model", EFFICIENT_MODEL_PATH)
+    efficient_model = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(efficient_model)
+    EfficientPolynomialSearch = efficient_model.EfficientPolynomialSearch
+    # Create an instance of the model
     model = EfficientPolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
+    # Delete the model's file
+    os.remove(EFFICIENT_MODEL_PATH)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -96,11 +109,7 @@ def train(train_id: int):
     losses = []
     count, min_loss = 0, float("inf")
     # Build a training loop
-    epoch = -1
-    while epoch < EPOCHS:
-        # Add epochs
-        epoch += 1
-
+    for epoch in tqdm(range(EPOCHS)):
         # Training mode
         model.train()
 
@@ -139,9 +148,9 @@ def train(train_id: int):
 
         # Early stopping
         if count > EARLY_STOPPING:
-            if lr == 1e-5:
+            if lr == MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                return False
+                break
             else:
                 print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
@@ -159,29 +168,11 @@ def train(train_id: int):
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             os.remove(STOP_THREAD_FILE(train_id))
-            return False
+            break
 
-        if min_loss < 1e-1:
+        if min_loss < 2:
             print(f"[{get_time()}][Thread {train_id}]: Found optimal solution.")
             return True
-
-        if epoch >= 800 and epoch % 200 == 0:
-            solution, ps_var = check_solution(torch.round(model.Q).tolist())
-            if solution:
-                if isinstance(solution, list):
-                    solution = solution[0]
-                try:
-                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
-                except:
-                    continue
-                print(f"[{get_time()}][Thread {train_id}] Found a solution!")
-                with open(OUTPUT_FILE(train_id), "w") as f:
-                    f.write(initial_string)
-                    f.write("\n" + "-" * 50 + "\n")
-                    f.write(f"Epoch {epoch}: Loss = 0\n")
-                    f.write(f"p(x) = {ps_result}.\n")
-                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                return True
 
     return False
 
