@@ -32,7 +32,7 @@ SUCCESS_FILE = join(WORKING_DIR, "success.txt")
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
-SCALE = 1000
+SCALE = 100
 
 # Define variable
 x = sp.symbols('x')
@@ -131,13 +131,13 @@ def train(train_id: int):
 
         # Early stopping
         if count > EARLY_STOPPING:
-            if lr == MIN_LR:
+            if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                start_new_thread(train_id)
+                # start_new_thread(train_id)
                 return
             else:
-                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
+                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
                 scheduler.step()
                 count = 0
                 min_change /= 10

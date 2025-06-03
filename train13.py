@@ -20,7 +20,7 @@ import sys
 from constants import *
 
 # Constants
-RESET_ENVIRONMENT = True
+RESET_ENVIRONMENT = False
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_13")
@@ -37,8 +37,9 @@ with open(DIVISORS_DATA, "rb") as f:
     DIVISORS = pickle.load(f)
 
 # Sample a degree for R
-# DEGREE = random.choice(list(DIVISORS.keys())[:20])
 DEGREE = 18
+while DEGREE == 18:
+    DEGREE = random.choice(list(DIVISORS.keys())[:20])
 print("Degree of R:", DEGREE)
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
 
@@ -140,12 +141,12 @@ def train(train_id: int):
 
         # Early stopping
         if count > EARLY_STOPPING:
-            if lr == MIN_LR:
+            if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 break
             else:
-                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
+                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
                 scheduler.step()
                 count = 0
                 min_change /= 10
