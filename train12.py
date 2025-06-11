@@ -13,12 +13,21 @@ import os
 import threading
 import shutil
 import sympy as sp
-from constants import *
+import pickle
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Hyperparameters
+EPOCHS = int(1e6)
+LR, MIN_LR = 1, 1e-6
+EARLY_STOPPING, MIN_CHANGE = 400, 0.2
+START_REGULARIZATION = 500
+LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4 = 0, 1e4, 0, 1
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
-SHOW_EVERY = 100
+SHOW_EVERY = 250
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_12")
 STOP_FILE = join(WORKING_DIR, "stop.txt")
@@ -46,9 +55,6 @@ while deg_r < DEGREE:
 
     # Find the degree of R
     deg_r = R.as_poly(x).degree()
-
-# Stop flag
-stop_event = threading.Event()
 
 
 def train(train_id: int):
@@ -85,8 +91,8 @@ def train(train_id: int):
     print(f"[{get_time()}][Thread {train_id}]: Started training.")
 
     # Set a list of loss functions
-    losses = []
     count, min_loss = 0, float("inf")
+    losses, epochs = [], [0]
     # Build a training loop
     epoch = -1
     while epoch < EPOCHS:
@@ -102,7 +108,8 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = loss_fn([output, Rs]) + LAMBDA1 * model.sparse_optimization()
+            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.integer_regularization()
+                    + LAMBDA3 * model.sparse_optimization() + LAMBDA4 * model.q_regularization())
         else:
             loss = loss_fn([output, Rs])
         losses.append(loss.item())
@@ -121,10 +128,10 @@ def train(train_id: int):
                 f.write(initial_string)
                 f.write("\n" + "-" * 50 + "\n")
                 f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
-                f.write(f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n")
-                f.write(f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n")
+                f.write(f"P(x): {model.P.tolist()[::-1]}\n")
+                f.write(f"Q(x): {model.Q.tolist()[::-1]}\n")
                 f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
-                diffs = torch.round(torch.abs((output - Rs) * WEIGHTS), decimals=3).tolist()[::-1]
+                diffs = torch.abs(output - Rs).tolist()[::-1]
                 f.write(f"diffs: {diffs}\n")
         else:
             count += 1
@@ -133,79 +140,18 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                # start_new_thread(train_id)
+                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
                 return
             else:
                 lr = lr / 10
                 print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
+                epochs.append(epoch)
                 scheduler.step()
                 count = 0
                 min_change /= 10
 
-        # Plot the loss
         if epoch % SHOW_EVERY == 0:
-            if epoch <= 500:
-                plot_loss(losses, save=LOSS_PLOT(train_id))
-            else:
-                plot_loss(losses, save=LOSS_PLOT(train_id), plot_last=500)
-
-        if os.path.exists(STOP_THREAD_FILE(train_id)):
-            print(f"[{get_time()}][Thread {train_id}]: Stopping thread and Starting a new one.")
-            os.remove(STOP_THREAD_FILE(train_id))
-            start_new_thread(train_id)
-            return
-
-        if os.path.exists(TERMINATE_THREAD_FILE(train_id)):
-            print(f"[{get_time()}][Thread {train_id}]: Terminating thread.")
-            os.remove(TERMINATE_THREAD_FILE(train_id))
-            return
-
-        if stop_event.is_set():
-            print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
-            return
-
-        if min_loss < 1e-1:
-            print(f"[{get_time()}][Thread {train_id}]: Found optimal solution.")
-            break
-
-        if epoch >= 800 and epoch % 200 == 0:
-            solution, ps_var = check_solution(torch.round(model.Q).tolist())
-            if solution:
-                if isinstance(solution, list):
-                    solution = solution[0]
-                try:
-                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
-                except:
-                    continue
-                print(f"[{get_time()}][Thread {train_id}] Found a solution!")
-                with open(OUTPUT_FILE(train_id), "w") as f:
-                    f.write(initial_string)
-                    f.write("\n" + "-" * 50 + "\n")
-                    f.write(f"Epoch {epoch}: Loss = 0\n")
-                    f.write(f"p(x) = {ps_result}.\n")
-                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                # Stop all other events
-                stop_event.set()
-                return
-
-    # Add the minimum loss to the list of losses
-    losses.append(min_loss)
-
-    # Plot the losses
-    plot_loss(losses, save=LOSS_PLOT(train_id))
-
-    # Save the success file
-    with open(SUCCESS_FILE, "w") as f:
-        f.write(f"Success at thread: {train_id}.")
-
-    # Stop all other events
-    stop_event.set()
-
-
-def start_new_thread(i):
-    if not os.path.exists(SUCCESS_FILE):
-        thread = threading.Thread(target=train, args=(i,))
-        thread.start()
+            plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
 
 def check_solution(qs):
@@ -225,28 +171,36 @@ def check_solution(qs):
         return False, None
 
 
+def find_close_solution(thread_id: int = 0):
+    qs, ps = sp.symbols(f"q0:{DEG_Q + 1}"), sp.symbols(f"p0:{DEG_P + 1}")
+    # Create the polynomial
+    q = sum([qs[i] * x ** i for i in range(len(qs))])
+    p = sum([ps[i] * x ** i for i in range(len(ps))])
+    # Create the equation
+    eq = sp.Eq(p.subs(x, q), R)
+    # Solve the equation
+    sol = sp.solve(eq, ps+qs, dict=True)
+    # Check if the solution is valid
+    if sol:
+        pickle.dump(sol + [ps, qs], open(join(THREAD_DIR(thread_id), "solution.pkl"), "wb"))
+
+
 def main():
     # Delete the results from the old run
     if RESET_ENVIRONMENT:
         if os.path.exists(WORKING_DIR):
             shutil.rmtree(WORKING_DIR)
 
+    thread = threading.Thread(target=find_close_solution, args=(0,))
+    thread.start()
+
     # Run the threads for this run
-    for i in range(NUM_THREADS):
-        thread = threading.Thread(target=train, args=(i,))
-        thread.start()
+    train(0)
 
-    while True:
-        if os.path.exists(STOP_FILE):
-            stop_event.set()
-            print("Stopping all threads.")
-            break
-
-        threads = threading.enumerate()
-        running_threads = [t for t in threads if t is not threading.main_thread()]
-        if not running_threads:
-            print(f"There are no running threads.")
-            break
+    if thread.is_alive():
+        raise Exception("Stop the program after training is done.")
+    else:
+        print("Found exact solution, check the 'solution.pkl' file.")
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ def generate_polynomial(degree, var, scale=3):
     return polynomial
 
 
-def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear", plot_last=0):
+def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear", plot_last=0, xticks=None):
     plt.figure()
     # Plot in logarithmic scale
     if mode == "log":
@@ -37,10 +37,13 @@ def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear",
     plt.title("Loss Function", fontsize=20)
     plt.xlabel("Epochs", fontsize=15)
     plt.ylabel("Loss", fontsize=15)
+    plt.grid(True)
     # Set the ticks labels to be 1000 to 1000 + plot_last
     if plot_last > 0:
         plt.xticks(ticks=range(0, plot_last, 50),
                    labels=[str(el) for el in range(len(losses) - plot_last - 1, len(losses) - 1, 50)])
+    if xticks:
+        plt.xticks(xticks)
     plt.tight_layout()
     if save:
         plt.savefig(save)

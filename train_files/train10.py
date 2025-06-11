@@ -4,43 +4,33 @@ Address the cases in 09 where it doesn't work by forcing the coefficient of the 
 """
 
 # Imports
+import torch
 import torch.optim as optim
 from model import PolynomialSearch
 from functions import *
 from os.path import join
 import os
+import threading
 import shutil
 import sympy as sp
-import pickle
-import random
-import time
-from tqdm.auto import tqdm
-import importlib.util
-import sys
 from constants import *
 
 # Constants
 RESET_ENVIRONMENT = False
+NUM_THREADS = 1
 SHOW_EVERY = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_13")
+WORKING_DIR = join("../output_dirs", "train_10")
+STOP_FILE = join(WORKING_DIR, "stop.txt")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-DIVISORS_DATA = join("data", "divisors.pkl")
-TIMEOUT = 60 * 10  # 10 minutes
-
-# Read the divisors data
-with open(DIVISORS_DATA, "rb") as f:
-    DIVISORS = pickle.load(f)
-
-# Sample a degree for R
-DEGREE = 18
-while DEGREE == 18:
-    DEGREE = random.choice(list(DIVISORS.keys())[:20])
-print("Degree of R:", DEGREE)
+TERMINATE_THREAD_FILE = lambda i: join(THREAD_DIR(i), "terminate.txt")
+SUCCESS_FILE = join(WORKING_DIR, "success.txt")
+DEG_P, DEG_Q = 5, 3
+DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
 
 # Define variable
@@ -48,40 +38,35 @@ x = sp.symbols('x')
 deg_r = 0
 while deg_r < DEGREE:
     # Define the polynomials
-    R = generate_polynomial(degree=DEGREE, var=x, scale=100)
+    P, Q = generate_polynomial(degree=DEG_P, var=x), generate_polynomial(degree=DEG_Q, var=x)
+    R = expand(P.subs(x, Q))
     # Get r's coefficients
     Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
+
     # Find the degree of R
     deg_r = R.as_poly(x).degree()
+
+# Stop flag
+stop_event = threading.Event()
 
 
 def train(train_id: int):
     # Create the working directory
     os.makedirs(THREAD_DIR(train_id), exist_ok=True)
 
-    # Set deg_q by train_id
-    deg_q = train_id
-
     # Create output file in the output directory
     initial_string = "Generated Polynomials:\n"
-    initial_string += f"R(x): {present_result(R)}\n"
+    initial_string += f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
 
     # Initialize the model
-    model = PolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
+    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
     # Get the model's expression list
     exp_list = model.rs
     # Create the efficient version of the model
     create_efficient_model(exp_list)
-
-    # Remove cached module if it exists
-    if "efficient_model" in sys.modules:
-        del sys.modules["efficient_model"]
-    spec = importlib.util.spec_from_file_location("efficient_model", EFFICIENT_MODEL_PATH)
-    efficient_model = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(efficient_model)
-    EfficientPolynomialSearch = efficient_model.EfficientPolynomialSearch
-    # Create an instance of the model
-    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=deg_q).to(DEVICE)
+    # Import the efficient model created
+    from efficient_model import EfficientPolynomialSearch
+    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -102,7 +87,11 @@ def train(train_id: int):
     losses = []
     count, min_loss = 0, float("inf")
     # Build a training loop
-    for epoch in tqdm(range(EPOCHS)):
+    epoch = -1
+    while epoch < EPOCHS:
+        # Add epochs
+        epoch += 1
+
         # Training mode
         model.train()
 
@@ -133,7 +122,7 @@ def train(train_id: int):
                 f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
                 f.write(f"P(x): {torch.round(model.P, decimals=3).tolist()[::-1]}\n")
                 f.write(f"Q(x): {torch.round(model.Q, decimals=3).tolist()[::-1]}\n")
-                f.write(f"R(x): {torch.round(output, decimals=2).tolist()[::-1]}\n")
+                f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
                 diffs = torch.round(torch.abs((output - Rs) * WEIGHTS), decimals=3).tolist()[::-1]
                 f.write(f"diffs: {diffs}\n")
         else:
@@ -141,12 +130,13 @@ def train(train_id: int):
 
         # Early stopping
         if count > EARLY_STOPPING:
-            if lr <= MIN_LR:
+            if lr == MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                break
+                start_new_thread(train_id)
+                return
             else:
+                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate at epoch {epoch}")
                 lr = lr / 10
-                print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
                 scheduler.step()
                 count = 0
                 min_change /= 10
@@ -159,22 +149,69 @@ def train(train_id: int):
                 plot_loss(losses, save=LOSS_PLOT(train_id), plot_last=300)
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
-            print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
+            print(f"[{get_time()}][Thread {train_id}]: Stopping thread and Starting a new one.")
             os.remove(STOP_THREAD_FILE(train_id))
+            start_new_thread(train_id)
+            return
+
+        if os.path.exists(TERMINATE_THREAD_FILE(train_id)):
+            print(f"[{get_time()}][Thread {train_id}]: Terminating thread.")
+            os.remove(TERMINATE_THREAD_FILE(train_id))
+            return
+
+        if stop_event.is_set():
+            print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
+            return
+
+        if min_loss < 1e-1:
+            print(f"[{get_time()}][Thread {train_id}]: Found optimal solution.")
             break
 
-        if min_loss < 2:
-            print(f"[{get_time()}][Thread {train_id}]: Found a solution.")
-            return True
+        if epoch >= 800 and epoch % 200 == 0:
+            solution, ps_var = check_solution(torch.round(model.Q).tolist())
+            if solution:
+                if isinstance(solution, list):
+                    solution = solution[0]
+                try:
+                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
+                except:
+                    continue
+                print(f"[{get_time()}][Thread {train_id}] Found a solution!")
+                with open(OUTPUT_FILE(train_id), "w") as f:
+                    f.write(initial_string)
+                    f.write("\n" + "-" * 50 + "\n")
+                    f.write(f"Epoch {epoch}: Loss = 0\n")
+                    f.write(f"p(x) = {ps_result}.\n")
+                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
+                # Stop all other events
+                stop_event.set()
+                return
 
-    return False
+    # Add the minimum loss to the list of losses
+    losses.append(min_loss)
+
+    # Plot the losses
+    plot_loss(losses, save=LOSS_PLOT(train_id))
+
+    # Save the success file
+    with open(SUCCESS_FILE, "w") as f:
+        f.write(f"Success at thread: {train_id}.")
+
+    # Stop all other events
+    stop_event.set()
+
+
+def start_new_thread(i):
+    if not os.path.exists(SUCCESS_FILE):
+        thread = threading.Thread(target=train, args=(i,))
+        thread.start()
 
 
 def check_solution(qs):
     # We already have R
     q = sum([qs[i] * x ** i for i in range(len(qs))])
     # Find p such that p(q) = R
-    ps = sp.var(f"p0:{DEGREE // (len(qs) - 1) + 1}")
+    ps = sp.var(f"p0:{DEG_P + 1}")
     p = sum([ps[i] * x ** i for i in range(len(ps))])
     # Create the equation
     eq = sp.Eq(p.subs(x, q), R)
@@ -194,11 +231,21 @@ def main():
             shutil.rmtree(WORKING_DIR)
 
     # Run the threads for this run
-    divisors = DIVISORS[DEGREE]
-    divisors = [d for i, d in enumerate(divisors) if i < (len(divisors) + 1) // 2 and d <= 10]
+    for i in range(NUM_THREADS):
+        thread = threading.Thread(target=train, args=(i,))
+        thread.start()
 
-    # Set a timer for timeout
-    train(random.sample(divisors, 1)[0])
+    while True:
+        if os.path.exists(STOP_FILE):
+            stop_event.set()
+            print("Stopping all threads.")
+            break
+
+        threads = threading.enumerate()
+        running_threads = [t for t in threads if t is not threading.main_thread()]
+        if not running_threads:
+            print(f"There are no running threads.")
+            break
 
 
 if __name__ == "__main__":

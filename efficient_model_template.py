@@ -34,7 +34,7 @@ class EfficientPolynomialSearch(nn.Module):
 
         return output
 
-    def regularization(self) -> torch.Tensor:
+    def integer_regularization(self) -> torch.Tensor:
         # Penalize distance from nearest integer
         reg = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))
         reg /= len(self.P) + len(self.Q)
@@ -46,8 +46,7 @@ class EfficientPolynomialSearch(nn.Module):
         reg /= len(self.P) + len(self.Q)
         return reg
 
-    def non_zero_regularization(self) -> torch.Tensor:
-        # Penalize non zero weights
-        reg = torch.sum(torch.pow(torch.abs(self.P), 1 / 5)) + torch.sum(torch.pow(torch.abs(self.Q), 1 / 5))
-        reg /= len(self.P) + len(self.Q)
+    def q_regularization(self) -> torch.Tensor:
+        # Penalize the coefficients of Q
+        reg = torch.sum(torch.abs(torch.round(self.Q) - self.Q)) / len(self.Q)
         return reg
