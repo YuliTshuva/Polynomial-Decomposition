@@ -1,6 +1,6 @@
 """
 Yuli Tshuva
-Testing my algorithm for large coefficients.
+Trying to improve my algorithm for large coefficients by rounding Q's coeffs every XXXX epochs.
 """
 
 # Imports
@@ -14,22 +14,16 @@ import threading
 import shutil
 import sympy as sp
 import pickle
+from constants import *
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-# Hyperparameters
-EPOCHS = int(1e6)
-LR, MIN_LR = 1, 1e-6
-EARLY_STOPPING, MIN_CHANGE = 400, 0.2
-START_REGULARIZATION = 500
-LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4 = 0, 1e4, 0, 1
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
-SHOW_EVERY = 250
+SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_12")
+WORKING_DIR = join("output_dirs", "train_14")
 STOP_FILE = join(WORKING_DIR, "stop.txt")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
@@ -108,8 +102,7 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.integer_regularization()
-                    + LAMBDA3 * model.sparse_optimization() + LAMBDA4 * model.q_regularization())
+            loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_integer_regularization()
         else:
             loss = loss_fn([output, Rs])
         losses.append(loss.item())
@@ -153,6 +146,27 @@ def train(train_id: int):
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
+        if epoch % SHOW_EVERY == 0:
+            # Round the model's Q coefficients
+            model.Q.data = torch.round(model.Q.data)
+
+            solution, ps_var = check_solution(torch.round(model.Q).tolist())
+            if solution:
+                if isinstance(solution, list):
+                    solution = solution[0]
+                try:
+                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
+                except:
+                    continue
+                print(f"[{get_time()}][Thread {train_id}] Found a solution!")
+                with open(OUTPUT_FILE(train_id), "w") as f:
+                    f.write(initial_string)
+                    f.write("\n" + "-" * 50 + "\n")
+                    f.write(f"Epoch {epoch}: Loss = 0\n")
+                    f.write(f"p(x) = {ps_result}.\n")
+                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
+                return
+
 
 def check_solution(qs):
     # We already have R
@@ -179,7 +193,7 @@ def find_close_solution(thread_id: int = 0):
     # Create the equation
     eq = sp.Eq(p.subs(x, q), R)
     # Solve the equation
-    sol = sp.solve(eq, ps+qs, dict=True)
+    sol = sp.solve(eq, ps + qs, dict=True)
     # Check if the solution is valid
     if sol:
         pickle.dump(sol + [ps, qs], open(join(THREAD_DIR(thread_id), "solution.pkl"), "wb"))
