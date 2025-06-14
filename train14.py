@@ -15,8 +15,18 @@ import shutil
 import sympy as sp
 import pickle
 from constants import *
+from find_closest_solution import find_closest_solution
+from rank_directions import rank_directions
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Hyperparameters
+EPOCHS = int(1e6)
+LR, MIN_LR = 10, 1e-10
+EARLY_STOPPING, MIN_CHANGE = int(4e2), 0.2
+START_REGULARIZATION = 300
+LAMBDA1, LAMBDA2 = 1, 1e6
+LAMBDA3 = 1
 
 # Constants
 RESET_ENVIRONMENT = False
@@ -24,14 +34,11 @@ NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_14")
-STOP_FILE = join(WORKING_DIR, "stop.txt")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-TERMINATE_THREAD_FILE = lambda i: join(THREAD_DIR(i), "terminate.txt")
-SUCCESS_FILE = join(WORKING_DIR, "success.txt")
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
@@ -102,7 +109,8 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_integer_regularization()
+            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.sparse_optimization() +
+                    LAMBDA3 * model.q_high_degree_regularization())
         else:
             loss = loss_fn([output, Rs])
         losses.append(loss.item())
@@ -146,9 +154,8 @@ def train(train_id: int):
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
-        if epoch % SHOW_EVERY == 0:
             # Round the model's Q coefficients
-            model.Q.data = torch.round(model.Q.data)
+            # model.Q.data = torch.round(model.Q.data)
 
             solution, ps_var = check_solution(torch.round(model.Q).tolist())
             if solution:
@@ -205,16 +212,17 @@ def main():
         if os.path.exists(WORKING_DIR):
             shutil.rmtree(WORKING_DIR)
 
-    thread = threading.Thread(target=find_close_solution, args=(0,))
-    thread.start()
+    # Find thread id
+    thread_id = max([int(d.split('_')[-1]) for d in os.listdir(WORKING_DIR) if d.startswith("thread_")], default=-1) + 1
 
     # Run the threads for this run
-    train(0)
-
-    if thread.is_alive():
-        raise Exception("Stop the program after training is done.")
-    else:
-        print("Found exact solution, check the 'solution.pkl' file.")
+    train(thread_id)
+    # Find closed form solution
+    find_close_solution(thread_id)
+    # Find the closest solution
+    find_closest_solution(THREAD_DIR(thread_id))
+    # Rank the directions
+    rank_directions(THREAD_DIR(thread_id))
 
 
 if __name__ == "__main__":

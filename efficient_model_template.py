@@ -50,3 +50,7 @@ class EfficientPolynomialSearch(nn.Module):
         # Penalize the coefficients of Q
         reg = torch.sum(torch.abs(torch.round(self.Q) - self.Q)) / len(self.Q)
         return reg
+
+    def q_high_degree_regularization(self) -> torch.Tensor:
+        # Penalize high degree coefficients of Q
+        return (self.Q[-1] - torch.round(self.Q[-1])) ** 2
