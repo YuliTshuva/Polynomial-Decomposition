@@ -38,8 +38,6 @@ def find_closest_solution(TARGET_DIR):
         lines = f.readlines()
 
     # Extract expressions
-    px = expression_to_polynomial(lines[1].split("P(x): ")[1])
-    qx = expression_to_polynomial(lines[2].split("Q(x): ")[1])
     found_px = expression_to_polynomial(lines[7].split("P(x): ")[1])
     found_qx = expression_to_polynomial(lines[8].split("Q(x): ")[1])
 

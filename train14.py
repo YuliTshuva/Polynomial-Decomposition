@@ -21,12 +21,12 @@ from rank_directions import rank_directions
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
-EPOCHS = int(1e6)
+EPOCHS = int(2e3)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(4e2), 0.2
 START_REGULARIZATION = 300
 LAMBDA1, LAMBDA2 = 1, 1e6
-LAMBDA3 = 1
+LAMBDA3 = 1e4
 
 # Constants
 RESET_ENVIRONMENT = False
