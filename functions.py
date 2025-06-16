@@ -43,7 +43,7 @@ def plot_loss(losses, save=None, show=False, mode: ["log", "linear"] = "linear",
         plt.xticks(ticks=range(0, plot_last, 50),
                    labels=[str(el) for el in range(len(losses) - plot_last - 1, len(losses) - 1, 50)])
     if xticks:
-        plt.xticks(xticks)
+        plt.xticks(xticks, rotation=45)
     plt.tight_layout()
     if save:
         plt.savefig(save)
