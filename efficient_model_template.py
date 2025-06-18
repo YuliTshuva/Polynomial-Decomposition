@@ -52,9 +52,9 @@ class EfficientPolynomialSearch(nn.Module):
         reg /= len(self.P) + len(self.Q)
         return reg
 
-    def q_integer_regularization(self) -> torch.Tensor:
+    def p_integer_regularization(self) -> torch.Tensor:
         # Penalize the coefficients of Q
-        reg = torch.sum(torch.abs(torch.round(self.Q) - self.Q)) / len(self.Q)
+        reg = torch.sum(torch.abs((torch.round(self.P) - self.P))) / len(self.P)
         return reg
 
     def q_high_degree_regularization(self) -> torch.Tensor:

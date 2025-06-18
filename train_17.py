@@ -25,14 +25,14 @@ LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
 LAMBDA1, LAMBDA2, P_REG = 1, 1e6, 0
 LAMBDA3 = 1e7
-TRAIN_Q, START_TUNING_P = 4, 2000
+START_TUNING_P = 2000
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_16")
+WORKING_DIR = join("output_dirs", "train_17")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
@@ -123,12 +123,7 @@ def train(train_id: int):
 
         # Backward pass and optimization
         loss.backward()
-        if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
-            highest_coef = model.Q[-1].item()
-            optimizer.step()
-            model.Q.data[-1] = highest_coef
-        else:
-            optimizer.step()
+        optimizer.step()
 
         if loss.item() + min_change < min_loss:
             count = 0
@@ -153,6 +148,7 @@ def train(train_id: int):
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                print(f"[{get_time()}][Thread {train_id}]: Start tuning P.")
                 return
             else:
                 lr = lr / 10
