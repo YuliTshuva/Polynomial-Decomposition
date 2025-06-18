@@ -10,7 +10,6 @@ from model import PolynomialSearch
 from functions import *
 from os.path import join
 import os
-import threading
 import shutil
 import sympy as sp
 import pickle
@@ -24,17 +23,16 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
-START_REGULARIZATION = 0
-LAMBDA1, LAMBDA2 = 1, 1e6
-LAMBDA3 = 1e5
-TRAIN_Q, START_TUNING_P = 3, 2500
+LAMBDA1, LAMBDA2, P_REG = 1, 1e6, 0
+LAMBDA3 = 1e7
+TRAIN_Q, START_TUNING_P = 4, 2000
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_15")
+WORKING_DIR = join("output_dirs", "train_16")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
@@ -44,6 +42,16 @@ DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
 SCALE = 100
+
+
+def sign(x):
+    if x > 0:
+        return 1
+    elif x < 0:
+        return -1
+    else:
+        return 0
+
 
 # Define variable
 x = sp.symbols('x')
@@ -109,21 +117,18 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        if epoch >= START_REGULARIZATION:
-            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_l2() +
-                    LAMBDA3 * model.q_high_degree_regularization())
-        else:
-            loss = loss_fn([output, Rs])
+        loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG) +
+                LAMBDA3 * model.q_high_degree_regularization())
         losses.append(loss.item())
 
         # Backward pass and optimization
         loss.backward()
         if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
-            for name, param in model.named_parameters():
-                if "Q" in name:
-                    param.grad[-1] = 0
-                    # Check best direction for high degree Q
-        optimizer.step()
+            highest_coef = model.Q[-1].item()
+            optimizer.step()
+            model.Q.data[-1] = highest_coef
+        else:
+            optimizer.step()
 
         if loss.item() + min_change < min_loss:
             count = 0
@@ -159,9 +164,6 @@ def train(train_id: int):
 
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
-
-            # Round the model's Q coefficients
-            # model.Q.data = torch.round(model.Q.data)
 
             solution, ps_var = check_solution(torch.round(model.Q).tolist())
             if solution:

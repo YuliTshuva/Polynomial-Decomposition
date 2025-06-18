@@ -11,6 +11,7 @@ import pickle
 from scipy.optimize import minimize
 import subprocess
 
+
 # Constants
 # TARGET_DIR = join("output_dirs", "train_14", "thread_0")
 
@@ -61,7 +62,7 @@ def find_closest_solution(TARGET_DIR):
 
     # Calculate the error
     error = 0
-    for i in range(len(target)):
+    for i in range(len(ps), len(target)):
         error += (expression[i] - target[i]) ** 2
 
     # Find approximation for the free variables that minimize the error
@@ -74,7 +75,12 @@ def find_closest_solution(TARGET_DIR):
     # Initial guess for the free variables
     initial_guess = [1.0] * len(free_vars)
     # Minimize the objective function
-    result = minimize(objective_function, initial_guess, method='Nelder-Mead')
+    result = minimize(objective_function, initial_guess, method='Nelder-Mead', options={
+        'xatol': 1e-10,  # Tighter tolerance on parameter changes
+        'fatol': 1e-10,  # Tighter tolerance on function value changes
+        'maxiter': 20000,  # Allow more iterations
+        'maxfev': 50000,  # Allow more function evaluations
+    })
     # Extract the optimized values
     optimized_values = result.x
     # Update the solution

@@ -46,9 +46,9 @@ class EfficientPolynomialSearch(nn.Module):
         reg /= len(self.P) + len(self.Q)
         return reg
 
-    def q_l1_p_l2(self) -> torch.Tensor:
+    def q_l1_p_ln(self, n) -> torch.Tensor:
         # Penalize weights' absolute value
-        reg = torch.sum(torch.pow(self.P, 4)) + torch.sum(torch.abs(self.Q))
+        reg = torch.sum(torch.abs(torch.pow(self.P, n))) + torch.sum(torch.abs(self.Q))
         reg /= len(self.P) + len(self.Q)
         return reg
 

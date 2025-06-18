@@ -19,3 +19,4 @@
 * <b><u>rank_directions.py</u></b> Round the values of Q in all possible combinations (up or down) and rank all the different possibilities by their loss for the same P as the model outputs.
 * <b><u>find_closest_solution.py</u></b> Find a composition to the problem which its coefficients are the closest to those of the polynomials the algorithm outputted.
 * <b><u>train15.py</u></b> Tries to address the extreme behavior of P's coefficients by applying l2 regularization for them.
+* <b><u>train16.py</u></b> Omits the l2 regularization for P's coefficients. By that the algorithm converges much better.

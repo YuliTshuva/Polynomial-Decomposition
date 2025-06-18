@@ -23,17 +23,18 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # Hyperparameters
 EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
-EARLY_STOPPING, MIN_CHANGE = int(4e2), 0.2
-START_REGULARIZATION = 300
+EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
+START_REGULARIZATION = 0
 LAMBDA1, LAMBDA2 = 1, 1e6
-LAMBDA3 = 1e4
+LAMBDA3 = 1e5
+TRAIN_Q, START_TUNING_P = 3, 2500
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("../output_dirs", "train_14")
+WORKING_DIR = join("../output_dirs", "train_15")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
@@ -109,7 +110,7 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.sparse_optimization() +
+            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_l2() +
                     LAMBDA3 * model.q_high_degree_regularization())
         else:
             loss = loss_fn([output, Rs])
@@ -117,6 +118,11 @@ def train(train_id: int):
 
         # Backward pass and optimization
         loss.backward()
+        if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
+            for name, param in model.named_parameters():
+                if "Q" in name:
+                    param.grad[-1] = 0
+                    # Check best direction for high degree Q
         optimizer.step()
 
         if loss.item() + min_change < min_loss:
@@ -155,7 +161,7 @@ def train(train_id: int):
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
             # Round the model's Q coefficients
-            model.Q.data = torch.round(model.Q.data)
+            # model.Q.data = torch.round(model.Q.data)
 
             solution, ps_var = check_solution(torch.round(model.Q).tolist())
             if solution:
@@ -172,7 +178,12 @@ def train(train_id: int):
                     f.write(f"Epoch {epoch}: Loss = 0\n")
                     f.write(f"p(x) = {ps_result}.\n")
                     f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                return
+                return True
+
+        if os.path.exists(STOP_THREAD_FILE(train_id)):
+            print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
+            os.remove(STOP_THREAD_FILE(train_id))
+            return
 
 
 def check_solution(qs):
@@ -208,6 +219,7 @@ def find_close_solution(thread_id: int = 0):
 
 def main():
     # Delete the results from the old run
+    os.makedirs(WORKING_DIR, exist_ok=True)
     if RESET_ENVIRONMENT:
         if os.path.exists(WORKING_DIR):
             shutil.rmtree(WORKING_DIR)
@@ -216,13 +228,15 @@ def main():
     thread_id = max([int(d.split('_')[-1]) for d in os.listdir(WORKING_DIR) if d.startswith("thread_")], default=-1) + 1
 
     # Run the threads for this run
-    train(thread_id)
-    # Find closed form solution
-    find_close_solution(thread_id)
-    # Find the closest solution
-    find_closest_solution(THREAD_DIR(thread_id))
-    # Rank the directions
-    rank_directions(THREAD_DIR(thread_id))
+    found_optimal_solution = train(thread_id)
+    # If an optimal solution was found, we can stop here
+    if not found_optimal_solution:
+        # Find closed form solution
+        find_close_solution(thread_id)
+        # Find the closest solution
+        find_closest_solution(THREAD_DIR(thread_id))
+        # Rank the directions
+        rank_directions(THREAD_DIR(thread_id))
 
 
 if __name__ == "__main__":
