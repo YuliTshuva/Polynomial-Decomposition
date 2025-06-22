@@ -34,29 +34,12 @@ class EfficientPolynomialSearch(nn.Module):
 
         return output
 
-    def integer_regularization(self) -> torch.Tensor:
-        # Penalize distance from nearest integer
-        reg = torch.sum(torch.abs(torch.round(self.P) - self.P)) + torch.sum(torch.abs(torch.round(self.Q) - self.Q))
-        reg /= len(self.P) + len(self.Q)
-        return reg
-
-    def sparse_optimization(self) -> torch.Tensor:
+    def q_l1_p_ln(self, pn, qn) -> torch.Tensor:
         # Penalize weights' absolute value
-        reg = torch.sum(torch.abs(self.P)) + torch.sum(torch.abs(self.Q))
-        reg /= len(self.P) + len(self.Q)
+        reg = torch.sum(torch.abs(torch.pow(self.P, pn)))/len(self.P)
+        reg += torch.sum(torch.abs(torch.pow(self.Q, qn)))/len(self.Q)
         return reg
 
-    def q_l1_p_ln(self, n) -> torch.Tensor:
-        # Penalize weights' absolute value
-        reg = torch.sum(torch.abs(torch.pow(self.P, n))) + torch.sum(torch.abs(self.Q))
-        reg /= len(self.P) + len(self.Q)
-        return reg
-
-    def p_integer_regularization(self) -> torch.Tensor:
-        # Penalize the coefficients of Q
-        reg = torch.sum(torch.abs((torch.round(self.P) - self.P))) / len(self.P)
-        return reg
-
-    def q_high_degree_regularization(self) -> torch.Tensor:
+    def q_high_degree_regularization(self, n) -> torch.Tensor:
         # Penalize high degree coefficients of Q
-        return (self.Q[-1] - torch.round(self.Q[-1])) ** 2
+        return torch.abs(torch.pow(self.Q[-1] - torch.round(self.Q[-1]), n))

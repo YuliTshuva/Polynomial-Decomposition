@@ -24,8 +24,9 @@ EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
 LAMBDA1, LAMBDA2, P_REG = 1, 1e6, 0
-LAMBDA3 = 1e7
-START_TUNING_P = 2000
+P_REG, Q_REG, HIGHEST_Q_REG = 0, 1, 1
+LAMBDA3 = 1e6
+TRAIN_Q, START_TUNING_P = 3, 2000
 
 # Constants
 RESET_ENVIRONMENT = False
@@ -117,13 +118,18 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG) +
-                LAMBDA3 * model.q_high_degree_regularization())
+        loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG, Q_REG) +
+                LAMBDA3 * model.q_high_degree_regularization(HIGHEST_Q_REG))
         losses.append(loss.item())
 
         # Backward pass and optimization
         loss.backward()
-        optimizer.step()
+        if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
+            highest_coef = model.Q[-1].item()
+            optimizer.step()
+            model.Q.data[-1] = highest_coef
+        else:
+            optimizer.step()
 
         if loss.item() + min_change < min_loss:
             count = 0
@@ -148,7 +154,6 @@ def train(train_id: int):
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                print(f"[{get_time()}][Thread {train_id}]: Start tuning P.")
                 return
             else:
                 lr = lr / 10
