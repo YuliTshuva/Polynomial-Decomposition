@@ -110,8 +110,8 @@ def train(train_id: int):
 
         # Compute loss
         if epoch >= START_REGULARIZATION:
-            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_l2() +
-                    LAMBDA3 * model.q_high_degree_regularization())
+            loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(0, 1) +
+                    LAMBDA3 * model.q_high_degree_regularization(1))
         else:
             loss = loss_fn([output, Rs])
         losses.append(loss.item())

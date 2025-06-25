@@ -21,18 +21,16 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
 EPOCHS = int(2e6)
-LR, MIN_LR = 10, 1e-10
-EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
-LAMBDA1, LAMBDA2, P_REG = 1, 1e6, 0
-LAMBDA3 = 1e7
-TRAIN_Q, START_TUNING_P = 4, 2000
+LR, MIN_LR = 1, 1e-10
+EARLY_STOPPING, MIN_CHANGE = 300, 0.1
+LAMBDA2, LAMBDA4 = 1, 1
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("../output_dirs", "train_16")
+WORKING_DIR = join("output_dirs", "train_18")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
@@ -40,7 +38,7 @@ MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
+WEIGHTS = torch.tensor([LAMBDA4] + [1] * (DEGREE-1) + [LAMBDA2]).to(DEVICE)
 SCALE = 100
 
 
@@ -58,8 +56,19 @@ x = sp.symbols('x')
 deg_r = 0
 while deg_r < DEGREE:
     # Define the polynomials
-    P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
+    # P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
+    P = [1.0, -1.0555555555555556, -0.6481481481481481, 1.4444444444444444, 1.3148148148148149, 0.7037037037037037][::-1]
+    Q = [1.0, -23.25, -14.25, 17.0][::-1]
+    P = sum([P[i] * x**i for i in range(len(P))])
+    Q = sum([Q[i] * x**i for i in range(len(Q))])
+    # Scale P, Q such that the coefficients of the highest degree are 1
+    P = P / P.as_poly(x).LC()
+    Q = Q / Q.as_poly(x).LC()
+    # Calculate R
     R = expand(P.subs(x, Q))
+    # Present the polynomials' coefficients as real values and not like fraction
+    P = [float(c) for c in sp.Poly(P, x).all_coeffs()]
+    Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
     # Get r's coefficients
     Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
@@ -73,7 +82,7 @@ def train(train_id: int):
 
     # Create output file in the output directory
     initial_string = "Generated Polynomials:\n"
-    initial_string += f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
+    initial_string += f"P(x): {P}\nQ(x): {Q}\nR(x): {Rs.tolist()[::-1]}\n"
 
     # Initialize the model
     model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
@@ -112,23 +121,25 @@ def train(train_id: int):
         # Training mode
         model.train()
 
+        # Set the coefficients of the largest degree to 1
+        model.P.data[-1] = 1
+        model.Q.data[-1] = 1
+
         # Forward pass
         optimizer.zero_grad()
         output = model()
 
         # Compute loss
-        loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG) +
-                LAMBDA3 * model.q_high_degree_regularization())
+        loss = loss_fn([output, Rs])
         losses.append(loss.item())
 
         # Backward pass and optimization
         loss.backward()
-        if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
-            highest_coef = model.Q[-1].item()
-            optimizer.step()
-            model.Q.data[-1] = highest_coef
-        else:
-            optimizer.step()
+        optimizer.step()
+
+        # Set the coefficients of the largest degree to 1
+        model.P.data[-1] = 1
+        model.Q.data[-1] = 1
 
         if loss.item() + min_change < min_loss:
             count = 0
@@ -164,23 +175,6 @@ def train(train_id: int):
 
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
-
-            solution, ps_var = check_solution(torch.round(model.Q).tolist())
-            if solution:
-                if isinstance(solution, list):
-                    solution = solution[0]
-                try:
-                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
-                except:
-                    continue
-                print(f"[{get_time()}][Thread {train_id}] Found a solution!")
-                with open(OUTPUT_FILE(train_id), "w") as f:
-                    f.write(initial_string)
-                    f.write("\n" + "-" * 50 + "\n")
-                    f.write(f"Epoch {epoch}: Loss = 0\n")
-                    f.write(f"p(x) = {ps_result}.\n")
-                    f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                return True
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
