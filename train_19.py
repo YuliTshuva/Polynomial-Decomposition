@@ -2,6 +2,7 @@
 Yuli Tshuva
 Normalize R before start training.
 """
+import random
 
 # Imports
 import torch
@@ -20,7 +21,7 @@ from rank_directions import rank_directions
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
-EPOCHS = int(1e4)
+EPOCHS = int(1e5)
 LR, MIN_LR = 1, 1e-10
 EARLY_STOPPING, MIN_CHANGE = 300, 0.1
 LAMBDA2, LAMBDA4 = 1, 1
@@ -30,15 +31,16 @@ RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_18")
+WORKING_DIR = join("output_dirs", "train_19")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
+PASS_THREAD_FILE = lambda i: join(THREAD_DIR(i), "pass.txt")
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-WEIGHTS = torch.tensor([LAMBDA4] + [1] * (DEGREE-1) + [LAMBDA2]).to(DEVICE)
+WEIGHTS = torch.tensor([LAMBDA4] + [1] * (DEGREE - 1) + [LAMBDA2]).to(DEVICE)
 SCALE = 100
 
 
@@ -55,11 +57,15 @@ def sign(x):
 x = sp.symbols('x')
 deg_r = 0
 while deg_r < DEGREE:
-    # Define the polynomials
-    P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
-    # Scale P, Q such that the coefficients of the highest degree are 1
-    P = P / P.as_poly(x).LC()
-    Q = Q / Q.as_poly(x).LC()
+    # # Define the polynomials
+    # P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
+    # # Scale P, Q such that the coefficients of the highest degree are 1
+    # P = P / P.as_poly(x).LC()
+    # Q = Q / Q.as_poly(x).LC()
+    P = [1.0, 1.2878787878787878, -0.4393939393939394, 0.9242424242424242, 0.8333333333333334, 0.8787878787878788]
+    Q = [1.0, 2.6486486486486487, 2.054054054054054, 2.2432432432432434]
+    P, Q = P[::-1], Q[::-1]
+    P, Q = sum([P[i] * x ** i for i in range(len(P))]), sum([Q[i] * x ** i for i in range(len(Q))])
     # Calculate R
     R = expand(P.subs(x, Q))
     # Present the polynomials' coefficients as real values and not like fraction
@@ -146,7 +152,7 @@ def train(train_id: int):
             with open(OUTPUT_FILE(train_id), "w") as f:
                 f.write(initial_string)
                 f.write("\n" + "-" * 50 + "\n")
-                f.write(f"Epoch {epoch}: Loss = {loss.item()}\n")
+                f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
                 f.write(f"P(x): {model.P.tolist()[::-1]}\n")
                 f.write(f"Q(x): {model.Q.tolist()[::-1]}\n")
                 f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")
@@ -160,7 +166,14 @@ def train(train_id: int):
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                return
+                if min_loss < 1e-5:
+                    return
+                print(f"[{get_time()}][Thread {train_id}]: Denoising parameters at epoch {epoch}.")
+                count = 0
+                lr, min_change = LR, MIN_CHANGE
+                optimizer = optim.Adam(model.parameters(), lr=lr)
+                scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+                model.Q.data[:-1] = model.Q.data[:-1] + torch.randn_like(model.Q.data[:-1])
             else:
                 lr = lr / 10
                 print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
@@ -176,6 +189,15 @@ def train(train_id: int):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             os.remove(STOP_THREAD_FILE(train_id))
             return
+
+        if os.path.exists(PASS_THREAD_FILE(train_id)):
+            print(f"[{get_time()}][Thread {train_id}]: Denoising parameters at epoch {epoch}.")
+            os.remove(PASS_THREAD_FILE(train_id))
+            count = 0
+            lr, min_change = LR, MIN_CHANGE
+            optimizer = optim.Adam(model.parameters(), lr=lr)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+            model.Q.data[:-1] = model.Q.data[:-1] + torch.randn_like(model.Q.data[:-1])
 
 
 def check_solution(qs):
@@ -221,14 +243,10 @@ def main():
 
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
-    # If an optimal solution was found, we can stop here
-    if not found_optimal_solution:
-        # Find closed form solution
-        find_close_solution(thread_id)
-        # Find the closest solution
-        find_closest_solution(THREAD_DIR(thread_id))
-        # Rank the directions
-        rank_directions(THREAD_DIR(thread_id))
+    # Find closed form solution
+    find_close_solution(thread_id)
+    # Find the closest solution
+    find_closest_solution(THREAD_DIR(thread_id))
 
 
 if __name__ == "__main__":

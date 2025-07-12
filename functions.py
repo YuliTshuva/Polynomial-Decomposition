@@ -6,6 +6,7 @@ from sympy import expand
 import torch
 import torch.nn as nn
 import time
+import math
 
 rcParams["font.family"] = "Times New Roman"
 EFFICIENT_MODEL_PATH = "efficient_model.py"
@@ -142,3 +143,19 @@ def weighted_l1_loss(output, target, weights):
     loss = torch.abs(output - target)
     weighted_loss = loss * weights
     return weighted_loss.mean()
+
+
+def suggest_coefficients(n, deg_p):
+    """
+    Get the coefficient of the highest degree of the polynomial R and the degree of the polynomial P.
+    Returns a suggested pair (p, q) such that p * q^deg_q = n.
+    """
+    revert = n < 0
+    n = abs(n)
+    for p in range(1, n + 1):
+        if n % p == 0:
+            q = math.pow(n // p, 1/deg_p)
+            if q - int(q) < 0.0001:
+                if revert:
+                    return -p, int(q)
+                return p, int(q)

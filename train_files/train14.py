@@ -33,7 +33,7 @@ RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("../output_dirs", "train_14")
+WORKING_DIR = join("output_dirs", "train_14")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
@@ -211,6 +211,7 @@ def main():
     if RESET_ENVIRONMENT:
         if os.path.exists(WORKING_DIR):
             shutil.rmtree(WORKING_DIR)
+    os.makedirs(WORKING_DIR)
 
     # Find thread id
     thread_id = max([int(d.split('_')[-1]) for d in os.listdir(WORKING_DIR) if d.startswith("thread_")], default=-1) + 1

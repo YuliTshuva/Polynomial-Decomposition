@@ -60,7 +60,11 @@ deg_r = 0
 while deg_r < DEGREE:
     # Define the polynomials
     P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
+    # Calculate R
     R = expand(P.subs(x, Q))
+    # Present the polynomials' coefficients as real values and not like fraction
+    P = [int(c) for c in sp.Poly(P, x).all_coeffs()]
+    Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
     # Get r's coefficients
     Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
@@ -74,7 +78,11 @@ def train(train_id: int):
 
     # Create output file in the output directory
     initial_string = "Generated Polynomials:\n"
-    initial_string += f"P(x): {present_result(P)}\nQ(x): {present_result(Q)}\nR(x): {present_result(R)}\n"
+    R_coefficients = Rs.tolist()[::-1]
+    initial_string += f"P(x): {P}\nQ(x): {Q}\nR(x): {R_coefficients}\n"
+
+    # Search for coefficients of P and Q
+    c_p, c_q = suggest_coefficients(int(R_coefficients[0]), DEG_P)
 
     # Initialize the model
     model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
@@ -113,6 +121,11 @@ def train(train_id: int):
         # Training mode
         model.train()
 
+        # Set coefficients
+        if epoch < 2000:
+            model.P.data[-1] = c_p
+            model.Q.data[-1] = c_q
+
         # Forward pass
         optimizer.zero_grad()
         output = model()
@@ -131,6 +144,11 @@ def train(train_id: int):
         else:
             optimizer.step()
 
+        # Set coefficients
+        if epoch < 2000:
+            model.P.data[-1] = c_p
+            model.Q.data[-1] = c_q
+
         if loss.item() + min_change < min_loss:
             count = 0
             min_loss = loss.item()
@@ -140,7 +158,7 @@ def train(train_id: int):
             with open(OUTPUT_FILE(train_id), "w") as f:
                 f.write(initial_string)
                 f.write("\n" + "-" * 50 + "\n")
-                f.write(f"Epoch {epoch}: Loss = {loss.item():.3f}\n")
+                f.write(f"Epoch {epoch}: Loss = {loss.item()}\n")
                 f.write(f"P(x): {model.P.tolist()[::-1]}\n")
                 f.write(f"Q(x): {model.Q.tolist()[::-1]}\n")
                 f.write(f"R(x): {torch.round(output, decimals=3).tolist()[::-1]}\n")

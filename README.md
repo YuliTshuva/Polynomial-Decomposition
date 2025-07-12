@@ -20,4 +20,6 @@
 * <b><u>find_closest_solution.py</u></b> Find a composition to the problem which its coefficients are the closest to those of the polynomials the algorithm outputted.
 * <b><u>train15.py</u></b> Tries to address the extreme behavior of P's coefficients by applying l2 regularization for them.
 * <b><u>train16.py</u></b> Omits the l2 regularization for P's coefficients. By that the algorithm converges much better.
-* <b><u>train16.py</u></b> Is a HP tuned version of train16.py.
+* <b><u>train17.py</u></b> Is a HP tuned version of train16.py.
+* <b><u>train18.py</u></b> Normalizes the coefficients of R such that the coefficient of the highest degree is 1.
+* <b><u>train19.py</u></b> Try again to decompose specific polynomials.
