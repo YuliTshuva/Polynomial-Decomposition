@@ -23,15 +23,14 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
-LAMBDA1, LAMBDA2, P_REG = 1, 1e6, 0
-P_REG, Q_REG, HIGHEST_Q_REG = 0, 1, 1
-LAMBDA3 = 1e6
-TRAIN_Q, START_TUNING_P = 3, 2000
+LAMBDA1, LAMBDA2 = 1, 1e6
+P_REG, Q_REG = 2, 1
+FORCE_COEFFICIENTS = 4000
 
 # Constants
 RESET_ENVIRONMENT = False
 NUM_THREADS = 1
-SHOW_EVERY = 500
+SHOW_EVERY = 50
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WORKING_DIR = join("output_dirs", "train_17")
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
@@ -122,7 +121,7 @@ def train(train_id: int):
         model.train()
 
         # Set coefficients
-        if epoch < 2000:
+        if epoch < FORCE_COEFFICIENTS:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -131,21 +130,15 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        loss = (loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG, Q_REG) +
-                LAMBDA3 * model.q_high_degree_regularization(HIGHEST_Q_REG))
+        loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG, Q_REG)
         losses.append(loss.item())
 
         # Backward pass and optimization
         loss.backward()
-        if epoch >= START_TUNING_P and epoch % TRAIN_Q != 0:
-            highest_coef = model.Q[-1].item()
-            optimizer.step()
-            model.Q.data[-1] = highest_coef
-        else:
-            optimizer.step()
+        optimizer.step()
 
         # Set coefficients
-        if epoch < 2000:
+        if epoch < FORCE_COEFFICIENTS:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -189,7 +182,7 @@ def train(train_id: int):
                 if isinstance(solution, list):
                     solution = solution[0]
                 try:
-                    ps_result = [solution[ps_var[i]] for i in range(len(ps_var))][::-1]
+                    ps_result = [int(solution[ps_var[i]]) for i in range(len(ps_var))][::-1]
                 except:
                     continue
                 print(f"[{get_time()}][Thread {train_id}] Found a solution!")
