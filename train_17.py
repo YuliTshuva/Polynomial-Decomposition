@@ -23,8 +23,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
-LAMBDA1, LAMBDA2 = 1, 1e6
-P_REG, Q_REG = 2, 1
+LAMBDA1, LAMBDA2 = 1, 1
+P_REG, Q_REG = 0, 1
 FORCE_COEFFICIENTS = 4000
 
 # Constants
@@ -40,7 +40,7 @@ MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
 DEG_P, DEG_Q = 5, 3
 DEGREE = DEG_P * DEG_Q
-WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA2]).to(DEVICE)
+WEIGHTS = torch.tensor([1] * (DEGREE + 1)).to(DEVICE)
 SCALE = 100
 
 
@@ -130,7 +130,7 @@ def train(train_id: int):
         output = model()
 
         # Compute loss
-        loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_l1_p_ln(P_REG, Q_REG)
+        loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_ln(Q_REG) + LAMBDA2 * model.p_ln(P_REG)
         losses.append(loss.item())
 
         # Backward pass and optimization
@@ -198,6 +198,18 @@ def train(train_id: int):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             os.remove(STOP_THREAD_FILE(train_id))
             return
+
+        # Reset if we are going to far
+        maxP, scaleP = torch.max(torch.abs(model.P.data)), abs(c_p)
+        if maxP > scaleP ** 2:
+            print(f"[{get_time()}][Thread {train_id}]: Applying reset and reducing lr.")
+            model.P.data[:-1] = 0
+            model.Q.data += (model.Q.data > 0) * 20 - 10
+            lr = lr / 10
+            epochs.append(epoch)
+            scheduler.step()
+            count = 0
+            min_change /= 10
 
 
 def check_solution(qs):
