@@ -4,23 +4,25 @@ Normalize R before start training.
 """
 
 # Imports
+import sys
 import torch
 import torch.optim as optim
-from model import PolynomialSearch
 from functions import *
+from model import PolynomialSearch
 from os.path import join
 import os
 import shutil
 import sympy as sp
 import pickle
-from constants import *
 from find_closest_solution import find_closest_solution
 from rank_directions import rank_directions
+import importlib
+import efficient_model
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
-EPOCHS = int(1e4)
+EPOCHS = int(2e4)
 LR, MIN_LR = 1, 1e-10
 EARLY_STOPPING, MIN_CHANGE = 300, 0.1
 LAMBDA2, LAMBDA4 = 1, 1
@@ -36,9 +38,6 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-DEG_P, DEG_Q = 5, 3
-DEGREE = DEG_P * DEG_Q
-WEIGHTS = torch.tensor([LAMBDA4] + [1] * (DEGREE-1) + [LAMBDA2]).to(DEVICE)
 SCALE = 100
 
 
@@ -53,23 +52,29 @@ def sign(x):
 
 # Define variable
 x = sp.symbols('x')
-deg_r = 0
-while deg_r < DEGREE:
-    # Define the polynomials
-    P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
-    # Scale P, Q such that the coefficients of the highest degree are 1
-    P = P / P.as_poly(x).LC()
-    Q = Q / Q.as_poly(x).LC()
-    # Calculate R
-    R = expand(P.subs(x, Q))
-    # Present the polynomials' coefficients as real values and not like fraction
-    P = [float(c) for c in sp.Poly(P, x).all_coeffs()]
-    Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
-    # Get r's coefficients
-    Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
-    # Find the degree of R
-    deg_r = R.as_poly(x).degree()
+# Load the input polynomials
+P, Q = sys.argv[1], sys.argv[2]
+# Convert the input polynomials from string to sympy expressions
+P = sp.sympify(P)
+Q = sp.sympify(Q)
+
+# Calculate the polynomial degrees
+DEG_P, DEG_Q = sp.Poly(P, x).degree(), sp.Poly(Q, x).degree()
+DEGREE = DEG_P * DEG_Q
+WEIGHTS = torch.tensor([LAMBDA4] + [1] * (DEGREE - 1) + [LAMBDA2]).to(DEVICE)
+
+# Scale P, Q such that the coefficients of the highest degree are 1
+P = P / P.as_poly(x).LC()
+Q = Q / Q.as_poly(x).LC()
+
+# Calculate R
+R = expand(P.subs(x, Q))
+# Present the polynomials' coefficients as real values and not like fraction
+P = [float(c) for c in sp.Poly(P, x).all_coeffs()]
+Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
+# Get r's coefficients
+Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
 
 def train(train_id: int):
@@ -87,8 +92,8 @@ def train(train_id: int):
     # Create the efficient version of the model
     create_efficient_model(exp_list)
     # Import the efficient model created
-    from efficient_model import EfficientPolynomialSearch
-    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    importlib.reload(efficient_model)
+    model = efficient_model.EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -217,7 +222,7 @@ def main():
             shutil.rmtree(WORKING_DIR)
 
     # Find thread id
-    thread_id = max([int(d.split('_')[-1]) for d in os.listdir(WORKING_DIR) if d.startswith("thread_")], default=-1) + 1
+    thread_id = int(sys.argv[3])
 
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
@@ -227,8 +232,6 @@ def main():
         find_close_solution(thread_id)
         # Find the closest solution
         find_closest_solution(THREAD_DIR(thread_id))
-        # Rank the directions
-        rank_directions(THREAD_DIR(thread_id))
 
 
 if __name__ == "__main__":

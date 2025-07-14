@@ -4,6 +4,7 @@ Trying to improve my algorithm for large coefficients by rounding Q's coeffs eve
 """
 
 # Imports
+import sys
 import torch
 import torch.optim as optim
 from model import PolynomialSearch
@@ -13,9 +14,11 @@ import os
 import shutil
 import sympy as sp
 import pickle
-from constants import *
 from find_closest_solution import find_closest_solution
 from rank_directions import rank_directions
+import importlib
+import efficient_model
+
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -23,7 +26,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 EPOCHS = int(2e6)
 LR, MIN_LR = 10, 1e-10
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
-LAMBDA1, LAMBDA2 = 1, 1
+LAMBDA1, LAMBDA2, LAMBDA3 = 1, 1, 1e3
 P_REG, Q_REG = 0, 1
 FORCE_COEFFICIENTS = 4000
 
@@ -38,9 +41,6 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-DEG_P, DEG_Q = 5, 3
-DEGREE = DEG_P * DEG_Q
-WEIGHTS = torch.tensor([1] * (DEGREE + 1)).to(DEVICE)
 SCALE = 100
 
 
@@ -55,20 +55,25 @@ def sign(x):
 
 # Define variable
 x = sp.symbols('x')
-deg_r = 0
-while deg_r < DEGREE:
-    # Define the polynomials
-    P, Q = generate_polynomial(degree=DEG_P, var=x, scale=SCALE), generate_polynomial(degree=DEG_Q, var=x, scale=SCALE)
-    # Calculate R
-    R = expand(P.subs(x, Q))
-    # Present the polynomials' coefficients as real values and not like fraction
-    P = [int(c) for c in sp.Poly(P, x).all_coeffs()]
-    Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
-    # Get r's coefficients
-    Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
-    # Find the degree of R
-    deg_r = R.as_poly(x).degree()
+# Load the input polynomials
+P, Q = sys.argv[1], sys.argv[2]
+# Convert the input polynomials from string to sympy expressions
+P = sp.sympify(P)
+Q = sp.sympify(Q)
+
+# Calculate the polynomial degrees
+DEG_P, DEG_Q = sp.Poly(P, x).degree(), sp.Poly(Q, x).degree()
+DEGREE = DEG_P * DEG_Q
+WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA3]).to(DEVICE)
+
+# Calculate R
+R = expand(P.subs(x, Q))
+# Present the polynomials' coefficients as real values and not like fraction
+P = [int(c) for c in sp.Poly(P, x).all_coeffs()]
+Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
+# Get r's coefficients
+Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
 
 def train(train_id: int):
@@ -90,8 +95,8 @@ def train(train_id: int):
     # Create the efficient version of the model
     create_efficient_model(exp_list)
     # Import the efficient model created
-    from efficient_model import EfficientPolynomialSearch
-    model = EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    importlib.reload(efficient_model)
+    model = efficient_model.EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -174,6 +179,7 @@ def train(train_id: int):
                 count = 0
                 min_change /= 10
 
+        # Plot loss and check solution
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
@@ -204,7 +210,7 @@ def train(train_id: int):
         if maxP > scaleP ** 2:
             print(f"[{get_time()}][Thread {train_id}]: Applying reset and reducing lr.")
             model.P.data[:-1] = 0
-            model.Q.data += (model.Q.data > 0) * 20 - 10
+            model.Q.data[:] = (model.Q.data > 0) * 0.2 * c_q - 0.1 * c_q
             lr = lr / 10
             epochs.append(epoch)
             scheduler.step()
@@ -251,7 +257,7 @@ def main():
             shutil.rmtree(WORKING_DIR)
 
     # Find thread id
-    thread_id = max([int(d.split('_')[-1]) for d in os.listdir(WORKING_DIR) if d.startswith("thread_")], default=-1) + 1
+    thread_id = int(sys.argv[3])
 
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
@@ -261,8 +267,6 @@ def main():
         find_close_solution(thread_id)
         # Find the closest solution
         find_closest_solution(THREAD_DIR(thread_id))
-        # Rank the directions
-        rank_directions(THREAD_DIR(thread_id))
 
 
 if __name__ == "__main__":
