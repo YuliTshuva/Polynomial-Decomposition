@@ -38,7 +38,6 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-SCALE = 100
 
 
 def sign(x):
@@ -113,6 +112,7 @@ def train(train_id: int):
     # Set a list of loss functions
     count, min_loss = 0, float("inf")
     losses, epochs = [], [0]
+    second_try = False
     # Build a training loop
     epoch = -1
     while epoch < EPOCHS:
@@ -162,10 +162,19 @@ def train(train_id: int):
 
         # Early stopping
         if count > EARLY_STOPPING:
-            if lr <= MIN_LR:
+            if lr <= MIN_LR or epoch >= EPOCHS // 2:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                return
+                if min_loss < 1e-5 or second_try or min_loss > 3:
+                    return
+                second_try = True
+                print(f"[{get_time()}][Thread {train_id}]: Retrying at epoch {epoch}.")
+                count = 0
+                lr, min_change = LR, MIN_CHANGE
+                optimizer = optim.Adam(model.parameters(), lr=lr)
+                scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+                model.Q.data[:-1] = 0
+                model.P.data[:-1] = 0
             else:
                 lr = lr / 10
                 print(f"[{get_time()}][Thread {train_id}]: Reducing learning rate to {lr} at epoch {epoch}")
@@ -227,11 +236,11 @@ def main():
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
     # If an optimal solution was found, we can stop here
-    if not found_optimal_solution:
+    if not found_optimal_solution and DEG_P > 4:
         # Find closed form solution
         find_close_solution(thread_id)
         # Find the closest solution
-        find_closest_solution(THREAD_DIR(thread_id))
+        find_closest_solution(THREAD_DIR(thread_id), DEGREE, DEG_Q)
 
 
 if __name__ == "__main__":

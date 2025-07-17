@@ -34,3 +34,5 @@ Then, we applied the valina generic algorithm on the dataset, as is, using ```pi
 Points to note:
 * There are modifications to the algorithms that need to be done in order to adjust for different scales and varying degrees.
 * We need to better understand the cases where the algorithm fails.
+
+Right now, I'm trying to figure out how can I make train18 more tolerant for cases which could converge.

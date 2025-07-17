@@ -152,10 +152,13 @@ def suggest_coefficients(n, deg_p):
     """
     revert = n < 0
     n = abs(n)
+    start = time.time()
     for p in range(1, n + 1):
+        if time.time() - start > 10:
+            return None, None
         if n % p == 0:
             q = math.pow(n // p, 1/deg_p)
-            if q - int(q) < 0.0001:
+            if abs(q - round(q)) < 0.0001:
                 if revert:
-                    return -p, int(q)
-                return p, int(q)
+                    return -p, round(q)
+                return p, round(q)

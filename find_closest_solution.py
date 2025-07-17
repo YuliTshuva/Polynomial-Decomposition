@@ -16,11 +16,10 @@ import subprocess
 # TARGET_DIR = join("output_dirs", "train_14", "thread_0")
 
 
-def find_closest_solution(TARGET_DIR):
+def find_closest_solution(TARGET_DIR, DEGREE, DEG_Q):
     MODEL_PATH = join(TARGET_DIR, "model.pth")
     SOLUTION_PATH = join(TARGET_DIR, "solution.pkl")
     POLY_FILE = join(TARGET_DIR, "polynomials.txt")
-    DEGREE, DEG_Q = 15, 3
 
     # Define the variable
     x = symbols('x')

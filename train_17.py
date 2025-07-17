@@ -15,7 +15,6 @@ import shutil
 import sympy as sp
 import pickle
 from find_closest_solution import find_closest_solution
-from rank_directions import rank_directions
 import importlib
 import efficient_model
 
@@ -23,8 +22,8 @@ import efficient_model
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
-EPOCHS = int(2e6)
-LR, MIN_LR = 10, 1e-10
+EPOCHS = int(1e4)
+LR, MIN_LR = 10, 1e-3
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
 LAMBDA1, LAMBDA2, LAMBDA3 = 1, 1, 1e3
 P_REG, Q_REG = 0, 1
@@ -41,7 +40,6 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-SCALE = 100
 
 
 def sign(x):
@@ -126,7 +124,7 @@ def train(train_id: int):
         model.train()
 
         # Set coefficients
-        if epoch < FORCE_COEFFICIENTS:
+        if epoch < FORCE_COEFFICIENTS and c_p:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -143,7 +141,7 @@ def train(train_id: int):
         optimizer.step()
 
         # Set coefficients
-        if epoch < FORCE_COEFFICIENTS:
+        if epoch < FORCE_COEFFICIENTS and c_p:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -205,18 +203,6 @@ def train(train_id: int):
             os.remove(STOP_THREAD_FILE(train_id))
             return
 
-        # Reset if we are going to far
-        maxP, scaleP = torch.max(torch.abs(model.P.data)), abs(c_p)
-        if maxP > scaleP ** 2:
-            print(f"[{get_time()}][Thread {train_id}]: Applying reset and reducing lr.")
-            model.P.data[:-1] = 0
-            model.Q.data[:] = (model.Q.data > 0) * 0.2 * c_q - 0.1 * c_q
-            lr = lr / 10
-            epochs.append(epoch)
-            scheduler.step()
-            count = 0
-            min_change /= 10
-
 
 def check_solution(qs):
     # We already have R
@@ -261,12 +247,12 @@ def main():
 
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
-    # If an optimal solution was found, we can stop here
-    if not found_optimal_solution:
-        # Find closed form solution
-        find_close_solution(thread_id)
-        # Find the closest solution
-        find_closest_solution(THREAD_DIR(thread_id))
+    # # If an optimal solution was found, we can stop here
+    # if not found_optimal_solution:
+    #     # Find closed form solution
+    #     find_close_solution(thread_id)
+    #     # Find the closest solution
+    #     find_closest_solution(THREAD_DIR(thread_id), DEGREE, DEG_Q)
 
 
 if __name__ == "__main__":

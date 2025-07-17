@@ -9,14 +9,14 @@ import pandas as pd
 import subprocess
 
 # Constants
-DATASET_PATH = join("data", "dataset.csv")
+DATASET_PATH = join("data", "dataset_300_vary.csv")
 
 # Load the dataset
 df = pd.read_csv(DATASET_PATH)
 
 # Iterate through the dataset
 for i, (p, q) in enumerate(zip(df['P(x)'], df['Q(x)']), start=1):
-    for train in ['train_17', 'train_18']:
+    for train in ["train_17", "train_18"]:
         if os.path.exists(join("output_dirs", f"{train}", f"thread_{i}")):
             print(f"[{train}] Thread {i} already exists, skipping...")
             continue
