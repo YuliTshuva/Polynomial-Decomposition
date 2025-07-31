@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import time
 import math
+import numpy as np
 
 rcParams["font.family"] = "Times New Roman"
 EFFICIENT_MODEL_PATH = "efficient_model.py"
@@ -157,8 +158,55 @@ def suggest_coefficients(n, deg_p):
         if time.time() - start > 10:
             return None, None
         if n % p == 0:
-            q = math.pow(n // p, 1/deg_p)
+            q = math.pow(n // p, 1 / deg_p)
             if abs(q - round(q)) < 0.0001:
                 if revert:
                     return -p, round(q)
                 return p, round(q)
+
+
+def reduce_solution_variance(Q, P, R):
+    # Ge the polynomials' variable
+    x = list(Q.free_symbols)[0]
+    # Get the coefficients of P
+    P_coeffs = sp.Poly(P, x).all_coeffs()
+    # Calculate the variance of P
+    variance = np.max(np.abs(np.array(P_coeffs)))
+    # Get P's degree
+    deg_p = len(P_coeffs) - 1
+
+    min_variance = {
+        "Q": Q,
+        "P": P
+    }
+
+    for sign in [-1, 1]:
+        new_Q = Q
+        strikes = 0
+        while True:
+            new_Q += sign
+            ps = sp.symbols(f"p0:{deg_p + 1}")
+            p = sum(ps[i] * x ** i for i in range(deg_p + 1))
+
+            # Create the equation
+            eq = sp.Eq(p.subs(x, new_Q), R)
+            # Solve the equation
+            sol = sp.solve(eq, ps, dict=True)
+            if isinstance(sol, list):
+                sol = sol[0]
+            sol = np.array([sol[ps[i]] for i in range(deg_p+1)])
+
+            # Calculate the variance
+            new_variance = np.max(np.abs(sol))
+            if new_variance < variance:
+                # If the variance is lower, update the coefficients
+                variance = new_variance
+                min_variance["Q"] = new_Q
+                min_variance["P"] = sum(sol[i] * x ** i for i in range(deg_p + 1))
+                continue
+            else:
+                strikes += 1
+                if strikes == 3:
+                    break
+
+    return min_variance["Q"], min_variance["P"]
