@@ -93,15 +93,32 @@ def train(train_id: int):
     # Search for coefficients of P and Q
     c_p, c_q = suggest_coefficients(int(R_coefficients[0]), DEG_P)
 
-    # Initialize the model
-    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
-    # Get the model's expression list
-    exp_list = model.rs
-    # Create the efficient version of the model
-    create_efficient_model(exp_list)
-    # Import the efficient model created
-    importlib.reload(efficient_model)
-    model = efficient_model.EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    # Set module and class name
+    module_name = "efficient_model"
+    class_name = f"EfficientPolynomialSearch_{DEGREE}_{DEG_Q}"
+    # Check if the model already been created
+    try:
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
+    # Create the model and instantiate it
+    except Exception:
+        # Initialize the model to get its expression list
+        model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+        exp_list = model.rs
+        # Create the efficient version of the model
+        create_efficient_model(exp_list, degree=DEGREE, deg_q=DEG_Q)
+        # Import the efficient model created
+        importlib.reload(efficient_model)
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:

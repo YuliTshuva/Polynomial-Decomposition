@@ -78,7 +78,7 @@ def express_with_coefficients(ps, qs, var):
     return coeffs
 
 
-def create_efficient_model(exp_list):
+def create_efficient_model(exp_list, degree, deg_q):
     # Handle power sign
     for i, exp in enumerate(exp_list):
         exp_list[i] = exp.replace("^", "**")
@@ -126,9 +126,13 @@ def create_efficient_model(exp_list):
 
     # Assign the forward in the model
     model = model.replace("# TO DO", forward_function)
+    model = model.replace(" = degree", f" = {degree}")
+    model = model.replace(" = deg_q", f" = {deg_q}")
+    model = model.replace("EfficientPolynomialSearch(", f"EfficientPolynomialSearch_{degree}_{deg_q}(")
+    model = model.replace("import torch\nfrom torch import nn", "")
 
     # Open the model file
-    with open("efficient_model.py", "w") as file:
+    with open(f"efficient_model.py", "a") as file:
         file.write(model)
 
 

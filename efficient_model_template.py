@@ -9,7 +9,7 @@ class EfficientPolynomialSearch(nn.Module):
     If the initialization is good, it is perfect. Else it will just not work.
     """
 
-    def __init__(self, degree: int, deg_q: int = None):
+    def __init__(self):
         """
         Initialize the polynomial decomposition module.
 
@@ -17,10 +17,12 @@ class EfficientPolynomialSearch(nn.Module):
             degree (int): Degree of the polynomial.
         """
         super(EfficientPolynomialSearch, self).__init__()
+        # Set slack values for compilation
+        degree, deg_q = 16, 4
         # Set the degree of R
         self.degree = degree
         self.deg_q = deg_q
-        self.deg_p = degree // deg_q
+        self.deg_p = self.degree // self.deg_q
 
         # Define the coefficients for P and Q
         self.P = nn.Parameter(torch.randn(self.deg_p + 1, dtype=torch.float64) / 10000)
