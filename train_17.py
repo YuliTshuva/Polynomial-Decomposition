@@ -18,7 +18,6 @@ from find_closest_solution import find_closest_solution
 import importlib
 import efficient_model
 
-
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
@@ -40,6 +39,11 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
+USE_PARTS = {
+    "guess coefficients": True,
+    "use regularization": True,
+    "round coefficients": True
+}
 
 
 def sign(x):
@@ -73,6 +77,9 @@ Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
 # Get r's coefficients
 Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
+if not USE_PARTS["use regularization"]:
+    LAMBDA1, LAMBDA2 = 0, 0
+
 
 def train(train_id: int):
     # Create the working directory
@@ -86,15 +93,32 @@ def train(train_id: int):
     # Search for coefficients of P and Q
     c_p, c_q = suggest_coefficients(int(R_coefficients[0]), DEG_P)
 
-    # Initialize the model
-    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
-    # Get the model's expression list
-    exp_list = model.rs
-    # Create the efficient version of the model
-    create_efficient_model(exp_list)
-    # Import the efficient model created
-    importlib.reload(efficient_model)
-    model = efficient_model.EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    # Set module and class name
+    module_name = "efficient_model"
+    class_name = f"EfficientPolynomialSearch_{DEGREE}_{DEG_Q}"
+    # Check if the model already been created
+    try:
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
+    # Create the model and instantiate it
+    except Exception:
+        # Initialize the model to get its expression list
+        model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+        exp_list = model.rs
+        # Create the efficient version of the model
+        create_efficient_model(exp_list, degree=DEGREE, deg_q=DEG_Q)
+        # Import the efficient model created
+        importlib.reload(efficient_model)
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -124,7 +148,7 @@ def train(train_id: int):
         model.train()
 
         # Set coefficients
-        if epoch < FORCE_COEFFICIENTS and c_p:
+        if epoch < FORCE_COEFFICIENTS and c_p and USE_PARTS["guess coefficients"]:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -141,7 +165,7 @@ def train(train_id: int):
         optimizer.step()
 
         # Set coefficients
-        if epoch < FORCE_COEFFICIENTS and c_p:
+        if epoch < FORCE_COEFFICIENTS and c_p and USE_PARTS["guess coefficients"]:
             model.P.data[-1] = c_p
             model.Q.data[-1] = c_q
 
@@ -181,6 +205,7 @@ def train(train_id: int):
         if epoch % SHOW_EVERY == 0:
             plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
+        if epoch % SHOW_EVERY == 0 and USE_PARTS["round coefficients"]:
             solution, ps_var = check_solution(torch.round(model.Q).tolist())
             if solution:
                 if isinstance(solution, list):
