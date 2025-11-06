@@ -17,6 +17,7 @@ import pickle
 from find_closest_solution import find_closest_solution
 import importlib
 import efficient_model
+import time
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -39,10 +40,11 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
+
 USE_PARTS = {
-    "guess coefficients": True,
-    "use regularization": True,
-    "round coefficients": True
+    "guess coefficients": sys.argv[4] == "1",
+    "use regularization": sys.argv[5] == "1",
+    "round coefficients": sys.argv[6] == "1"
 }
 
 
@@ -96,8 +98,13 @@ def train(train_id: int):
     # Set module and class name
     module_name = "efficient_model"
     class_name = f"EfficientPolynomialSearch_{DEGREE}_{DEG_Q}"
+
+    # Check if such a model exists
+    with open(module_name+".py", "r") as file:
+        models_available = file.read()
+
     # Check if the model already been created
-    try:
+    if class_name in models_available:
         # Import the module dynamically
         module = importlib.import_module(module_name)
         # Get the class dynamically
@@ -105,7 +112,7 @@ def train(train_id: int):
         # Optionally instantiate it
         model = cls().to(DEVICE)
     # Create the model and instantiate it
-    except Exception:
+    else:
         # Initialize the model to get its expression list
         model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
         exp_list = model.rs
@@ -270,8 +277,19 @@ def main():
     # Find thread id
     thread_id = int(sys.argv[3])
 
+    # Measure runtime
+    start_time = time.time()
+
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
+
+    # Stop runtime measurement
+    runtime = time.time() - start_time
+
+    # Save runtime to a file
+    with open(OUTPUT_FILE(thread_id), "a") as f:
+        f.write(f"\nTotal runtime: {runtime:.2f} seconds\n")
+
     # # If an optimal solution was found, we can stop here
     # if not found_optimal_solution:
     #     # Find closed form solution

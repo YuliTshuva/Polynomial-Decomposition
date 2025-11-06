@@ -18,6 +18,7 @@ from find_closest_solution import find_closest_solution
 from rank_directions import rank_directions
 import importlib
 import efficient_model
+import time
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -26,6 +27,7 @@ EPOCHS = int(2e4)
 LR, MIN_LR = 1, 1e-10
 EARLY_STOPPING, MIN_CHANGE = 300, 0.1
 LAMBDA2, LAMBDA4 = 1, 1
+THRESHOLD_LOSS = 1e-5
 
 # Constants
 RESET_ENVIRONMENT = False
@@ -38,6 +40,9 @@ OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
+USE_PARTS = {
+    "use regularization": True,
+}
 
 
 def sign(x):
@@ -74,6 +79,9 @@ P = [float(c) for c in sp.Poly(P, x).all_coeffs()]
 Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
 # Get r's coefficients
 Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
+
+if not USE_PARTS["use regularization"]:
+    LAMBDA2, LAMBDA4 = 0, 0
 
 
 def train(train_id: int):
@@ -165,8 +173,8 @@ def train(train_id: int):
             if lr <= MIN_LR or epoch >= EPOCHS // 2:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                if min_loss < 1e-5 or second_try or min_loss > 3:
-                    return
+                if min_loss < THRESHOLD_LOSS or second_try or min_loss > 3:
+                    return min_loss < THRESHOLD_LOSS
                 second_try = True
                 print(f"[{get_time()}][Thread {train_id}]: Retrying at epoch {epoch}.")
                 count = 0
@@ -189,7 +197,7 @@ def train(train_id: int):
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             os.remove(STOP_THREAD_FILE(train_id))
-            return
+            return min_loss < THRESHOLD_LOSS
 
 
 def check_solution(qs):
@@ -233,10 +241,20 @@ def main():
     # Find thread id
     thread_id = int(sys.argv[3])
 
+    # Measure runtime
+    start_time = time.time()
+
     # Run the threads for this run
     found_optimal_solution = train(thread_id)
-    # If an optimal solution was found, we can stop here
-    if not found_optimal_solution and DEG_P > 4:
+
+    # Stop runtime measurement
+    runtime = time.time() - start_time
+
+    # Save runtime to a file
+    with open(OUTPUT_FILE(thread_id), "a") as f:
+        f.write(f"\nTotal runtime: {runtime:.2f} seconds\n")
+
+    if not found_optimal_solution:
         # Find closed form solution
         find_close_solution(thread_id)
         # Find the closest solution

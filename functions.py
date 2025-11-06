@@ -128,7 +128,7 @@ def create_efficient_model(exp_list, degree, deg_q):
     model = model.replace("# TO DO", forward_function)
     model = model.replace(" = degree", f" = {degree}")
     model = model.replace(" = deg_q", f" = {deg_q}")
-    model = model.replace("EfficientPolynomialSearch(", f"EfficientPolynomialSearch_{degree}_{deg_q}(")
+    model = model.replace("EfficientPolynomialSearch", f"EfficientPolynomialSearch_{degree}_{deg_q}")
     model = model.replace("import torch\nfrom torch import nn", "")
 
     # Open the model file
