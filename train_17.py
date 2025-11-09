@@ -29,23 +29,23 @@ LAMBDA1, LAMBDA2, LAMBDA3 = 1, 1, 1e3
 P_REG, Q_REG = 0, 1
 FORCE_COEFFICIENTS = 4000
 
-# Constants
-RESET_ENVIRONMENT = False
-NUM_THREADS = 1
-SHOW_EVERY = 50
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_17")
-THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
-OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
-LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
-MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
-STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-
 USE_PARTS = {
     "guess coefficients": sys.argv[4] == "1",
     "use regularization": sys.argv[5] == "1",
     "round coefficients": sys.argv[6] == "1"
 }
+
+# Constants
+RESET_ENVIRONMENT = False
+NUM_THREADS = 1
+SHOW_EVERY = 50
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+WORKING_DIR = join("output_dirs", f"train_17_{'1' if USE_PARTS['guess coefficients'] else '0'}{'1' if USE_PARTS['use regularization'] else '0'}{'1' if USE_PARTS['round coefficients'] else '0'}")
+THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
+OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
+LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
+MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
+STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
 
 
 def sign(x):
@@ -180,7 +180,7 @@ def train(train_id: int):
             count = 0
             min_loss = loss.item()
             # Save the model in the output directory
-            torch.save(model.state_dict(), MODEL_PATH(train_id))
+            # torch.save(model.state_dict(), MODEL_PATH(train_id))
 
             with open(OUTPUT_FILE(train_id), "w") as f:
                 f.write(initial_string)
@@ -198,7 +198,7 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
                 return
             else:
                 lr = lr / 10
@@ -208,9 +208,9 @@ def train(train_id: int):
                 count = 0
                 min_change /= 10
 
-        # Plot loss and check solution
-        if epoch % SHOW_EVERY == 0:
-            plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
+        # # Plot loss and check solution
+        # if epoch % SHOW_EVERY == 0:
+        #     plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
         if epoch % SHOW_EVERY == 0 and USE_PARTS["round coefficients"]:
             solution, ps_var = check_solution(torch.round(model.Q).tolist())

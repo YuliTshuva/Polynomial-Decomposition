@@ -81,7 +81,7 @@ Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
 Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
 if not USE_PARTS["use regularization"]:
-    LAMBDA2, LAMBDA4 = 0, 0
+    LAMBDA2, LAMBDA4 = 1, 1
 
 
 def train(train_id: int):
@@ -92,15 +92,37 @@ def train(train_id: int):
     initial_string = "Generated Polynomials:\n"
     initial_string += f"P(x): {P}\nQ(x): {Q}\nR(x): {Rs.tolist()[::-1]}\n"
 
-    # Initialize the model
-    model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
-    # Get the model's expression list
-    exp_list = model.rs
-    # Create the efficient version of the model
-    create_efficient_model(exp_list)
-    # Import the efficient model created
-    importlib.reload(efficient_model)
-    model = efficient_model.EfficientPolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+    # Set module and class name
+    module_name = "efficient_model"
+    class_name = f"EfficientPolynomialSearch_{DEGREE}_{DEG_Q}"
+
+    # Check if such a model exists
+    with open(module_name + ".py", "r") as file:
+        models_available = file.read()
+
+    # Check if the model already been created
+    if class_name in models_available:
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
+    # Create the model and instantiate it
+    else:
+        # Initialize the model to get its expression list
+        model = PolynomialSearch(degree=DEGREE, deg_q=DEG_Q).to(DEVICE)
+        exp_list = model.rs
+        # Create the efficient version of the model
+        create_efficient_model(exp_list, degree=DEGREE, deg_q=DEG_Q)
+        # Import the efficient model created
+        importlib.reload(efficient_model)
+        # Import the module dynamically
+        module = importlib.import_module(module_name)
+        # Get the class dynamically
+        cls = getattr(module, class_name)
+        # Optionally instantiate it
+        model = cls().to(DEVICE)
 
     # Initialize the model parameters
     with open(OUTPUT_FILE(train_id), "w") as f:
@@ -172,7 +194,7 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr <= MIN_LR or epoch >= EPOCHS // 2:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
                 if min_loss < THRESHOLD_LOSS or second_try or min_loss > 3:
                     return min_loss < THRESHOLD_LOSS
                 second_try = True
@@ -191,8 +213,8 @@ def train(train_id: int):
                 count = 0
                 min_change /= 10
 
-        if epoch % SHOW_EVERY == 0:
-            plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
+        # if epoch % SHOW_EVERY == 0:
+        #     plot_loss(losses, save=LOSS_PLOT(train_id), mode="log")
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")

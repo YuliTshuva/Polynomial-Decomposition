@@ -141,4 +141,3 @@ def analyze_for_300_vary():
         plt.close()
 
 
-analyze_for_100_5_3()

@@ -198,7 +198,7 @@ def reduce_solution_variance(Q, P, R):
             sol = sp.solve(eq, ps, dict=True)
             if isinstance(sol, list):
                 sol = sol[0]
-            sol = np.array([sol[ps[i]] for i in range(deg_p+1)])
+            sol = np.array([sol[ps[i]] for i in range(deg_p + 1)])
 
             # Calculate the variance
             new_variance = np.max(np.abs(sol))
@@ -214,3 +214,10 @@ def reduce_solution_variance(Q, P, R):
                     break
 
     return min_variance["Q"], min_variance["P"]
+
+
+def j_to_bool(index, j):
+    if j == index:
+        return "0"
+    else:
+        return "1"
