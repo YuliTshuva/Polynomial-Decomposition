@@ -114,6 +114,25 @@ def list_hp_values(hp_combination):
             str(hp_combination["FORCE_COEFFICIENTS"])]
 
 
+def analyze_results():
+    trail_dirs = os.listdir(HP_DIR)
+    for trail_dir in trail_dirs:
+        trail_path = join(HP_DIR, trail_dir)
+        threads_path = join(trail_path, "threads")
+        thread_dirs = os.listdir(threads_path)
+        total_score = 0
+        for thread_dir in thread_dirs:
+            thread_path = join(threads_path, thread_dir)
+            result_path = join(thread_path, "polynomials.txt")
+            with open(result_path, "r") as f:
+                result = float(f.readlines()[6].strip().split("Loss = ")[1])
+                if result < 1:
+                    total_score += 1
+
+        with open(join(trail_path, "score.txt"), "w") as f:
+            f.write(f"Total score: {total_score}/{len(thread_dirs)}\n")
+
+
 def main():
     # Create the validation set if it doesn't exist
     if not os.path.exists(VALIDATION_SET_PATH):
