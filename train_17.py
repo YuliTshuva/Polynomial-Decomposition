@@ -29,6 +29,16 @@ LAMBDA1, LAMBDA2, LAMBDA3 = 1, 1, 1e3
 P_REG, Q_REG = 0, 1
 FORCE_COEFFICIENTS = 4000
 
+# Adjust for hyperparameters optimization
+if len(sys.argv) > 7:
+    LR = float(sys.argv[7])
+    MIN_LR = float(sys.argv[8])
+    EARLY_STOPPING = int(sys.argv[9])
+    LAMBDA1 = float(sys.argv[10])
+    LAMBDA2 = float(sys.argv[11])
+    LAMBDA3 = float(sys.argv[12])
+    FORCE_COEFFICIENTS = int(sys.argv[13])
+
 USE_PARTS = {
     "guess coefficients": sys.argv[4] == "1",
     "use regularization": sys.argv[5] == "1",
@@ -40,7 +50,10 @@ RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 50
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", f"train_17_{'1' if USE_PARTS['guess coefficients'] else '0'}{'1' if USE_PARTS['use regularization'] else '0'}{'1' if USE_PARTS['round coefficients'] else '0'}")
+if len(sys.argv) <= 7:
+    WORKING_DIR = join("output_dirs", f"train_17_{'1' if USE_PARTS['guess coefficients'] else '0'}{'1' if USE_PARTS['use regularization'] else '0'}{'1' if USE_PARTS['round coefficients'] else '0'}")
+else:
+    WORKING_DIR = sys.argv[14]
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
