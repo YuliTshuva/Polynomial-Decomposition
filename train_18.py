@@ -34,15 +34,19 @@ RESET_ENVIRONMENT = False
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-WORKING_DIR = join("output_dirs", "train_18")
+if len(sys.argv) <= 4:
+    WORKING_DIR = join("output_dirs", "train_18")
+else:
+    WORKING_DIR = sys.argv[6]
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
 OUTPUT_FILE = lambda i: join(THREAD_DIR(i), f"polynomials.txt")
 LOSS_PLOT = lambda i: join(THREAD_DIR(i), f"loss.png")
 MODEL_PATH = lambda i: join(THREAD_DIR(i), f"model.pth")
 STOP_THREAD_FILE = lambda i: join(THREAD_DIR(i), "stop.txt")
-USE_PARTS = {
-    "use regularization": True,
-}
+
+if len(sys.argv) > 4:
+    LAMBDA2 = float(sys.argv[4])
+    LAMBDA4 = float(sys.argv[5])
 
 
 def sign(x):
@@ -79,9 +83,6 @@ P = [float(c) for c in sp.Poly(P, x).all_coeffs()]
 Q = [float(c) for c in sp.Poly(Q, x).all_coeffs()]
 # Get r's coefficients
 Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
-
-if not USE_PARTS["use regularization"]:
-    LAMBDA2, LAMBDA4 = 1, 1
 
 
 def train(train_id: int):

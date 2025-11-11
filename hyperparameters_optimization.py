@@ -98,26 +98,34 @@ def get_hyperparameters_combination(train="train_17"):
     return hp_combinations
 
 
-def validate_hp_combination(hp_combination):
+def validate_hp_combination(hp_combination, train="train_17"):
     # Iterate over the hp dir
-    for dir in os.listdir(HP_DIR):
+    working_dir = join(HP_DIR, train)
+    for dir in os.listdir(working_dir):
         # Load the hyperparameters
-        hp_path = join(HP_DIR, dir, "hyperparameters.txt")
+        hp_path = join(working_dir, dir, "hyperparameters.txt")
 
         # Read the hyperparameters file
         with open(hp_path, "r") as f:
             lines = f.readlines()
 
-        # Parse the hyperparameters
-        existing_hp_combination = {
-            "LR": float(lines[0].strip().split(": ")[1]),
-            "MIN_LR": float(lines[1].strip().split(": ")[1]),
-            "EARLY_STOPPING": int(lines[2].strip().split(": ")[1]),
-            "LAMBDA1": float(lines[3].strip().split(": ")[1]),
-            "LAMBDA2": float(lines[4].strip().split(": ")[1]),
-            "LAMBDA3": float(lines[5].strip().split(": ")[1]),
-            "FORCE_COEFFICIENTS": float(lines[6].strip().split(": ")[1])
-        }
+        if train == "train_17":
+            # Parse the hyperparameters
+            existing_hp_combination = {
+                "LR": float(lines[0].strip().split(": ")[1]),
+                "MIN_LR": float(lines[1].strip().split(": ")[1]),
+                "EARLY_STOPPING": int(lines[2].strip().split(": ")[1]),
+                "LAMBDA1": float(lines[3].strip().split(": ")[1]),
+                "LAMBDA2": float(lines[4].strip().split(": ")[1]),
+                "LAMBDA3": float(lines[5].strip().split(": ")[1]),
+                "FORCE_COEFFICIENTS": float(lines[6].strip().split(": ")[1])
+            }
+        else:
+            # Parse the hyperparameters
+            existing_hp_combination = {
+                "LAMBDA2": float(lines[0].strip().split(": ")[1]),
+                "LAMBDA4": float(lines[1].strip().split(": ")[1]),
+            }
 
         # Compare the hyperparameters
         if hp_combination == existing_hp_combination:
@@ -126,17 +134,21 @@ def validate_hp_combination(hp_combination):
     return True
 
 
-def list_hp_values(hp_combination):
-    return [str(hp_combination["LR"]), str(hp_combination["MIN_LR"]), str(hp_combination["EARLY_STOPPING"]),
-            str(hp_combination["LAMBDA1"]), str(hp_combination["LAMBDA2"]), str(hp_combination["LAMBDA3"]),
-            str(hp_combination["FORCE_COEFFICIENTS"])]
+def list_hp_values(hp_combination, train="train_17"):
+    if train == "train_17":
+        return [str(hp_combination["LR"]), str(hp_combination["MIN_LR"]), str(hp_combination["EARLY_STOPPING"]),
+                str(hp_combination["LAMBDA1"]), str(hp_combination["LAMBDA2"]), str(hp_combination["LAMBDA3"]),
+                str(hp_combination["FORCE_COEFFICIENTS"])]
+    else:
+        return [str(hp_combination["LAMBDA2"]), str(hp_combination["LAMBDA4"])]
 
 
-def analyze_results():
-    trail_dirs = os.listdir(HP_DIR)
+def analyze_results(train="train_17"):
+    working_dir = join(HP_DIR, train)
+    trail_dirs = os.listdir(working_dir)
     trail_to_score = {}
     for trail_dir in trail_dirs:
-        trail_path = join(HP_DIR, trail_dir)
+        trail_path = join(working_dir, trail_dir)
         threads_path = join(trail_path, "threads")
         thread_dirs = os.listdir(threads_path)
         total_score = 0
@@ -161,8 +173,9 @@ def analyze_results():
     plt.xticks(trails)
     plt.xlabel("Trail number", fontsize=15)
     plt.ylabel("Score (correct decompositions)", fontsize=15)
-    plt.title("Hyperparameters Optimization Results", fontsize=20)
-    plt.savefig(join("plots", "hp_optimization_17_results.png"))
+    plt.title(f"Hyperparameters Optimization Results ({'integer case' if train == 'train_17' else 'normalized case'})",
+              fontsize=20)
+    plt.savefig(join("plots", f"{train}_hp_optimization_results.png"))
     plt.show()
 
 
@@ -181,22 +194,23 @@ def main():
     # Run the process of HP optimization
     while True:
         # Find trail number
-        trail_num = os.listdir(HP_DIR)
+        working_dir = join(HP_DIR, train)
+        trail_num = os.listdir(working_dir)
         if len(trail_num) == 0:
             trail_num = 1
         else:
             trail_num = max([int(name.split("_")[-1]) for name in trail_num]) + 1
 
         # Get a hyperparameters combination
-        hp_combination = get_hyperparameters_combination()
+        hp_combination = get_hyperparameters_combination(train=train)
 
         # Validate the hyperparameters combination
-        if not validate_hp_combination(hp_combination):
+        if not validate_hp_combination(hp_combination, train=train):
             print(f"[{get_time()}]: Hyperparameters combination already exists, getting a new one...")
             continue
 
         # Create a new directory for the hyperparameters combination
-        hp_dir = join(HP_DIR, f"trail_{trail_num}")
+        hp_dir = join(HP_DIR, train, f"trail_{trail_num}")
         os.makedirs(hp_dir, exist_ok=False)
 
         # Create a new directory for the threads
@@ -217,11 +231,13 @@ def main():
                 print(
                     f"[{get_time()}] Trail {trail_num} thread {i} already exists, skipping...")
             else:
-                argv_list = ["python3", f"{train}.py", p, q, str(i), "1", "1", "1"] + list_hp_values(hp_combination) + [
-                    threads_dir]
+                argv_list = ["python3", f"{train}.py", p, q, str(i)]
+                if train == "train_17":
+                    argv_list += ["1", "1", "1"]
+                argv_list += list_hp_values(hp_combination, train=train) + [threads_dir]
                 print(f"[{get_time()}] Starting trail {trail_num} thread {i}.")
                 subprocess.run(args=argv_list, )
 
 
 if __name__ == "__main__":
-    analyze_results()
+    main()
