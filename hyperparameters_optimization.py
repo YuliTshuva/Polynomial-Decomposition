@@ -15,15 +15,22 @@ What I actually need for this:
 4. Adjust the optimization algorithm.
 """
 
+import os
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 # Imports
 import sympy as sp
 import pandas as pd
-import os
 from os.path import join
 from create_dataset import random_int
 import subprocess
 import random
 from functions import get_time
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+
+rcParams["font.family"] = "Times New Roman"
 
 # Parameters
 VALIDATION_SET_PATH = join("data", "validation_set.csv")
@@ -38,6 +45,11 @@ HYPERPARAMETERS_SPACE_17 = {
     "LAMBDA2": [0.1, 0.5, 1, 5, 10, 20],
     "LAMBDA3": [500, 1e3, 1e4, 1e5],
     "FORCE_COEFFICIENTS": [3000, 4000, 5000, 6000]
+}
+
+HYPERPARAMETERS_SPACE_18 = {
+    "LAMBDA2": [0.1, 0.5, 1, 5, 10, 20, 100],
+    "LAMBDA4": [0.1, 0.5, 1, 5, 10, 20, 100],
 }
 
 
@@ -67,16 +79,22 @@ def create_validation_set():
     df.to_csv(VALIDATION_SET_PATH, index=False, columns=["P(x)", "Q(x)"])
 
 
-def get_hyperparameters_combination():
-    hp_combinations = {
-        "LR": random.sample(HYPERPARAMETERS_SPACE_17["LR"], 1)[0],
-        "MIN_LR": random.sample(HYPERPARAMETERS_SPACE_17["MIN_LR"], 1)[0],
-        "EARLY_STOPPING": random.sample(HYPERPARAMETERS_SPACE_17["EARLY_STOPPING"], 1)[0],
-        "LAMBDA1": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA1"], 1)[0],
-        "LAMBDA2": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA2"], 1)[0],
-        "LAMBDA3": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA3"], 1)[0],
-        "FORCE_COEFFICIENTS": random.sample(HYPERPARAMETERS_SPACE_17["FORCE_COEFFICIENTS"], 1)[0]
-    }
+def get_hyperparameters_combination(train="train_17"):
+    if train == "train_17":
+        hp_combinations = {
+            "LR": random.sample(HYPERPARAMETERS_SPACE_17["LR"], 1)[0],
+            "MIN_LR": random.sample(HYPERPARAMETERS_SPACE_17["MIN_LR"], 1)[0],
+            "EARLY_STOPPING": random.sample(HYPERPARAMETERS_SPACE_17["EARLY_STOPPING"], 1)[0],
+            "LAMBDA1": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA1"], 1)[0],
+            "LAMBDA2": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA2"], 1)[0],
+            "LAMBDA3": random.sample(HYPERPARAMETERS_SPACE_17["LAMBDA3"], 1)[0],
+            "FORCE_COEFFICIENTS": random.sample(HYPERPARAMETERS_SPACE_17["FORCE_COEFFICIENTS"], 1)[0]
+        }
+    else:
+        hp_combinations = {
+            "LAMBDA2": random.sample(HYPERPARAMETERS_SPACE_18["LAMBDA2"], 1)[0],
+            "LAMBDA4": random.sample(HYPERPARAMETERS_SPACE_18["LAMBDA4"], 1)[0],
+        }
     return hp_combinations
 
 
@@ -116,6 +134,7 @@ def list_hp_values(hp_combination):
 
 def analyze_results():
     trail_dirs = os.listdir(HP_DIR)
+    trail_to_score = {}
     for trail_dir in trail_dirs:
         trail_path = join(HP_DIR, trail_dir)
         threads_path = join(trail_path, "threads")
@@ -125,12 +144,26 @@ def analyze_results():
             thread_path = join(threads_path, thread_dir)
             result_path = join(thread_path, "polynomials.txt")
             with open(result_path, "r") as f:
-                result = float(f.readlines()[6].strip().split("Loss = ")[1])
+                result = float(f.readlines()[6].split("Loss = ")[1].strip())
                 if result < 1:
                     total_score += 1
 
         with open(join(trail_path, "score.txt"), "w") as f:
+            trail_to_score[int(trail_dir.split("_")[-1])] = total_score
             f.write(f"Total score: {total_score}/{len(thread_dirs)}\n")
+
+    plt.figure()
+    # Plot for each trail its score like a histogram
+    trails = list(trail_to_score.keys())
+    plt.bar(x=trails, height=list(trail_to_score.values()), color="royalblue", edgecolor="black")
+    plt.plot([min(trails), max(trails)], [len(thread_dirs)] * 2, color="turquoise")
+    plt.yticks(range(0, len(thread_dirs) + 1, 10))
+    plt.xticks(trails)
+    plt.xlabel("Trail number", fontsize=15)
+    plt.ylabel("Score (correct decompositions)", fontsize=15)
+    plt.title("Hyperparameters Optimization Results", fontsize=20)
+    plt.savefig(join("plots", "hp_optimization_17_results.png"))
+    plt.show()
 
 
 def main():
@@ -191,4 +224,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    analyze_results()

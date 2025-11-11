@@ -162,7 +162,7 @@ def train(train_id: int):
 
         # Compute loss
         loss = loss_fn([output, Rs])
-        losses.append(loss.item())
+        # losses.append(loss.item())
 
         # Backward pass and optimization
         loss.backward()
