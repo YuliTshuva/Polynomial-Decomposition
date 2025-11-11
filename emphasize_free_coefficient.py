@@ -48,7 +48,7 @@ def plot_bar(ps, deviation, save_path=None):
     plt.yticks(np.abs(ps).astype(np.int64))
     plt.xlabel("Coefficients", fontsize=15)
     plt.ylabel("Value", fontsize=15)
-    sign = "+" if deviation >=0 else "-"
+    sign = "+" if deviation >= 0 else "-"
     plt.title(f"P's coefficients for c = 51 {sign} {abs(deviation)}", fontsize=20)
     if save_path:
         plt.savefig(save_path)

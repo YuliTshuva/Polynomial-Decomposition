@@ -41,4 +41,4 @@ for deg_q, deg_p in combinations:
             df.loc[df.shape[0]] = [p, q]
 
 # Save the df to a csv file
-df.to_csv(join("data", "dataset_300_vary.csv"), index=False, columns=["P(x)", "Q(x)"])
+# df.to_csv(join("data", "dataset_300_vary.csv"), index=False, columns=["P(x)", "Q(x)"])

@@ -179,6 +179,32 @@ def analyze_results(train="train_17"):
     plt.show()
 
 
+def extract_hp_for_dir(hp_path, train):
+    # Read the hyperparameters file
+    with open(hp_path, "r") as f:
+        lines = f.readlines()
+
+    if train == "train_17":
+        # Parse the hyperparameters
+        hp_combination = {
+            "LR": float(lines[0].strip().split(": ")[1]),
+            "MIN_LR": float(lines[1].strip().split(": ")[1]),
+            "EARLY_STOPPING": int(lines[2].strip().split(": ")[1]),
+            "LAMBDA1": float(lines[3].strip().split(": ")[1]),
+            "LAMBDA2": float(lines[4].strip().split(": ")[1]),
+            "LAMBDA3": float(lines[5].strip().split(": ")[1]),
+            "FORCE_COEFFICIENTS": float(lines[6].strip().split(": ")[1])
+        }
+    else:
+        # Parse the hyperparameters
+        hp_combination = {
+            "LAMBDA2": float(lines[0].strip().split(": ")[1]),
+            "LAMBDA4": float(lines[1].strip().split(": ")[1]),
+        }
+
+    return hp_combination
+
+
 def main():
     # Create the validation set if it doesn't exist
     if not os.path.exists(VALIDATION_SET_PATH):
@@ -196,32 +222,43 @@ def main():
         # Find trail number
         working_dir = join(HP_DIR, train)
         trail_num = os.listdir(working_dir)
+        new_trail = True
         if len(trail_num) == 0:
             trail_num = 1
         else:
             trail_num = max([int(name.split("_")[-1]) for name in trail_num]) + 1
+            if len(os.listdir(join(working_dir, f"trail_{trail_num - 1}"))) < df.shape[0]:
+                trail_num -= 1
+                new_trail = False
 
         # Get a hyperparameters combination
-        hp_combination = get_hyperparameters_combination(train=train)
+        if new_trail:
+            hp_combination = get_hyperparameters_combination(train=train)
+        else:
+            hp_path = join(working_dir, f"trail_{trail_num}", "hyperparameters.txt")
+            hp_combination = extract_hp_for_dir(hp_path, train=train)
 
-        # Validate the hyperparameters combination
-        if not validate_hp_combination(hp_combination, train=train):
-            print(f"[{get_time()}]: Hyperparameters combination already exists, getting a new one...")
-            continue
-
-        # Create a new directory for the hyperparameters combination
+        # Set directories paths
         hp_dir = join(HP_DIR, train, f"trail_{trail_num}")
-        os.makedirs(hp_dir, exist_ok=False)
-
-        # Create a new directory for the threads
         threads_dir = join(hp_dir, "threads")
-        os.makedirs(threads_dir, exist_ok=False)
-
-        # Save the hyperparameters combination to a file
         hp_path = join(hp_dir, "hyperparameters.txt")
-        with open(hp_path, "w") as f:
-            for key, value in hp_combination.items():
-                f.write(f"{key}: {value}\n")
+
+        if new_trail:
+            # Validate the hyperparameters combination
+            if not validate_hp_combination(hp_combination, train=train):
+                print(f"[{get_time()}]: Hyperparameters combination already exists, getting a new one...")
+                continue
+
+            # Create a new directory for the hyperparameters combination
+            os.makedirs(hp_dir, exist_ok=False)
+
+            # Create a new directory for the threads
+            os.makedirs(threads_dir, exist_ok=False)
+
+            # Save the hyperparameters combination to a file
+            with open(hp_path, "w") as f:
+                for key, value in hp_combination.items():
+                    f.write(f"{key}: {value}\n")
 
         print(f"Evaluating hyperparameters combination: {hp_combination}")
 
