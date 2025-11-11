@@ -15,7 +15,6 @@ import shutil
 import sympy as sp
 import pickle
 from find_closest_solution import find_closest_solution
-from rank_directions import rank_directions
 import importlib
 import efficient_model
 import time
@@ -31,6 +30,7 @@ THRESHOLD_LOSS = 1e-5
 
 # Constants
 RESET_ENVIRONMENT = False
+TIMEOUT = 60 * 2.5
 NUM_THREADS = 1
 SHOW_EVERY = 500
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -146,6 +146,7 @@ def train(train_id: int):
     second_try = False
     # Build a training loop
     epoch = -1
+    start = time.time()
     while epoch < EPOCHS:
         # Add epochs
         epoch += 1
@@ -177,7 +178,7 @@ def train(train_id: int):
             count = 0
             min_loss = loss.item()
             # Save the model in the output directory
-            torch.save(model.state_dict(), MODEL_PATH(train_id))
+            # torch.save(model.state_dict(), MODEL_PATH(train_id))
 
             with open(OUTPUT_FILE(train_id), "w") as f:
                 f.write(initial_string)
@@ -192,11 +193,11 @@ def train(train_id: int):
             count += 1
 
         # Early stopping
-        if count > EARLY_STOPPING:
-            if lr <= MIN_LR or epoch >= EPOCHS // 2:
+        if count > EARLY_STOPPING or min_loss < THRESHOLD_LOSS or (time.time() - start) > TIMEOUT:
+            if lr <= MIN_LR or epoch >= EPOCHS // 2 or min_loss < THRESHOLD_LOSS or (time.time() - start) > TIMEOUT:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                if min_loss < THRESHOLD_LOSS or second_try or min_loss > 3:
+                if min_loss < THRESHOLD_LOSS or second_try or min_loss > 3 or (time.time() - start) > TIMEOUT:
                     return min_loss < THRESHOLD_LOSS
                 second_try = True
                 print(f"[{get_time()}][Thread {train_id}]: Retrying at epoch {epoch}.")

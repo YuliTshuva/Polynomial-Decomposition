@@ -189,7 +189,7 @@ def main():
     df = pd.read_csv(VALIDATION_SET_PATH)
 
     # Set train file
-    train = "train_17"  # 18
+    train = "train_18"  # 18
 
     # Run the process of HP optimization
     while True:
