@@ -260,7 +260,7 @@ def main():
                 for key, value in hp_combination.items():
                     f.write(f"{key}: {value}\n")
 
-        print(f"Evaluating hyperparameters combination: {hp_combination}")
+        print(f"[trail [{trail_num}]] Evaluating hyperparameters combination: {hp_combination}")
 
         # Iterate through the dataset
         for i, (p, q) in enumerate(zip(df['P(x)'], df['Q(x)']), start=1):
