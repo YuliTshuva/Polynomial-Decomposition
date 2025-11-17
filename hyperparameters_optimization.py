@@ -215,7 +215,7 @@ def main():
     df = pd.read_csv(VALIDATION_SET_PATH)
 
     # Set train file
-    train = "train_18"  # 18
+    train = "train_17"  # 18
 
     # Run the process of HP optimization
     while True:
@@ -227,13 +227,23 @@ def main():
             trail_num = 1
         else:
             trail_num = max([int(name.split("_")[-1]) for name in trail_num]) + 1
-            if len(os.listdir(join(working_dir, f"trail_{trail_num - 1}"))) < df.shape[0]:
+            if len(os.listdir(join(working_dir, f"trail_{trail_num - 1}", "threads"))) < df.shape[0]:
                 trail_num -= 1
                 new_trail = False
 
         # Get a hyperparameters combination
         if new_trail:
             hp_combination = get_hyperparameters_combination(train=train)
+
+            hp_combination = {
+                "LR": 0.1,
+                "MIN_LR": 0.001,
+                "EARLY_STOPPING": 100,
+                "LAMBDA1": 100,
+                "LAMBDA2": 100,
+                "LAMBDA3": 1,
+                "FORCE_COEFFICIENTS": 1,
+            }
         else:
             hp_path = join(working_dir, f"trail_{trail_num}", "hyperparameters.txt")
             hp_combination = extract_hp_for_dir(hp_path, train=train)
@@ -260,7 +270,7 @@ def main():
                 for key, value in hp_combination.items():
                     f.write(f"{key}: {value}\n")
 
-        print(f"[trail [{trail_num}]] Evaluating hyperparameters combination: {hp_combination}")
+        print(f"[trail {trail_num}] Evaluating hyperparameters combination: {hp_combination}")
 
         # Iterate through the dataset
         for i, (p, q) in enumerate(zip(df['P(x)'], df['Q(x)']), start=1):
@@ -268,7 +278,7 @@ def main():
                 print(
                     f"[{get_time()}] Trail {trail_num} thread {i} already exists, skipping...")
             else:
-                argv_list = ["python3", f"{train}.py", p, q, str(i)]
+                argv_list = ["python", f"{train}.py", p, q, str(i)]
                 if train == "train_17":
                     argv_list += ["1", "1", "1"]
                 argv_list += list_hp_values(hp_combination, train=train) + [threads_dir]

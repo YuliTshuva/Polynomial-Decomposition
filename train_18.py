@@ -269,7 +269,7 @@ def main():
     start_time = time.time()
 
     # Run the threads for this run
-    found_optimal_solution = train(thread_id)
+    train(thread_id)
 
     # Stop runtime measurement
     runtime = time.time() - start_time
@@ -278,11 +278,11 @@ def main():
     with open(OUTPUT_FILE(thread_id), "a") as f:
         f.write(f"\nTotal runtime: {runtime:.2f} seconds\n")
 
-    if not found_optimal_solution:
-        # Find closed form solution
-        find_close_solution(thread_id)
-        # Find the closest solution
-        find_closest_solution(THREAD_DIR(thread_id), DEGREE, DEG_Q)
+    # if not found_optimal_solution:
+    #     # Find closed form solution
+    #     find_close_solution(thread_id)
+    #     # Find the closest solution
+    #     find_closest_solution(THREAD_DIR(thread_id), DEGREE, DEG_Q)
 
 
 if __name__ == "__main__":

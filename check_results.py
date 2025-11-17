@@ -57,14 +57,14 @@ def analyze_for_100_5_3():
             scale_successes[scale] += 1
 
     plt.figure(figsize=(8, 5))
-    plt.title(f"Successes per scale (total of {total_successes} ({successes1}|{successes2}))", fontsize=20)
+    plt.title(f"Successes per scale", fontsize=20)
     xs = np.array(list(scale_successes1.keys()))
     ys1, ys2 = list(scale_successes1.values()), list(scale_successes2.values())
     width, space = 2, 2
-    plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label="Integer case")
-    plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label="Normalized case")
+    plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label=f"Integer case ({successes1})")
+    plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label=f"Normalized case ({successes2})")
     plt.bar(xs + space, list(scale_successes.values()), color="turquoise", width=width, edgecolor="black",
-            label="Total")
+            label=f"Total ({total_successes})")
     plt.xticks(list(scale_successes1.keys()), rotation=45)
     plt.yticks(range(repetitions + 1))
     plt.xlabel("Scale", fontsize=15)
@@ -72,7 +72,7 @@ def analyze_for_100_5_3():
     plt.legend()
     plt.tight_layout()
     plt.savefig(join("plots", "successes_per_scale_100_5_3.png"))
-    plt.show()
+    plt.close()
 
 
 def analyze_for_300_vary():
@@ -84,8 +84,7 @@ def analyze_for_300_vary():
     combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 8]]
 
     # Modify the working directory
-    global WORKING_DIR
-    WORKING_DIR = join(WORKING_DIR, "300_vary")
+    WORKING_DIR = join("output_dirs", "300_vary")
 
     for i in range(len(combinations)):
         # Sum the successes
@@ -124,15 +123,15 @@ def analyze_for_300_vary():
 
         plt.figure(figsize=(8, 5))
         plt.title(
-            f"Successes per scale for {combinations[i][1]}_{combinations[i][0]} (total of {total_successes} ({successes1}|{successes2}))",
+            f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}",
             fontsize=20)
         xs = np.array(list(scale_successes1.keys()))
         ys1, ys2 = list(scale_successes1.values()), list(scale_successes2.values())
         width, space = 2, 2
-        plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label="Integer case")
-        plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label="Normalized case")
+        plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label=f"Integer case ({successes1})")
+        plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label=f"Normalized case ({successes2})")
         plt.bar(xs + space, list(scale_successes.values()), color="turquoise", width=width, edgecolor="black",
-                label="Total")
+                label=f"Total ({total_successes})")
         plt.xticks(list(scale_successes1.keys()), rotation=45)
         plt.yticks(range(repetitions + 1))
         plt.xlabel("Scale", fontsize=15)
@@ -197,17 +196,19 @@ def analyze_for_100_5_3_ablation():
             scale_successes4[scale] += 1
 
     plt.figure(figsize=(8, 5))
-    plt.title(f"Ablation results ({successes3}|{successes1}|{successes2}|{successes4})", fontsize=20)
+    plt.title(f"Ablation results", fontsize=20)
     xs = np.array(list(scale_successes1.keys()))
     ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                           list(scale_successes3.values()), list(scale_successes4.values()))
     width, space = 1.5, 2
-    plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black", label="Without rounding coefficients")
+    plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
+            label=f"Without rounding coefficients ({successes3})")
     plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-            label="Without guessing coefficients")
+            label=f"Without guessing coefficients ({successes1})")
     plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-            label="Without using regularization")
-    plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black", label="Full model")
+            label=f"Without using regularization ({successes2})")
+    plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+            label=f"Full model ({successes4})")
     plt.xticks(list(scale_successes1.keys()), rotation=45)
     plt.yticks(range(repetitions + 1))
     plt.xlabel("Scale", fontsize=15)
@@ -215,7 +216,7 @@ def analyze_for_100_5_3_ablation():
     plt.legend()
     plt.tight_layout()
     plt.savefig(join("plots", "ablation_results_100_5_3.png"))
-    plt.show()
+    plt.close()
 
 
 def analyze_for_300_vary_ablation():
@@ -276,20 +277,19 @@ def analyze_for_300_vary_ablation():
                 scale_successes4[scale] += 1
 
         plt.figure(figsize=(8, 5))
-        plt.title(
-            f"Ablation successes per scale for {combinations[i][1]}_{combinations[i][0]} ({successes3}|{successes1}|{successes2}|{successes4})",
-            fontsize=20)
+        plt.title(f"Ablation successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
         xs = np.array(list(scale_successes1.keys()))
         ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                               list(scale_successes3.values()), list(scale_successes4.values()))
         width, space = 2, 2
         plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
-                label="Without rounding coefficients")
+                label=f"Without rounding coefficients ({successes3})")
         plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-                label="Without guessing coefficients")
+                label=f"Without guessing coefficients ({successes1})")
         plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-                label="Without using regularization")
-        plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black", label="Full model")
+                label=f"Without using regularization ({successes2})")
+        plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+                label=f"Full model ({successes4})")
         plt.xticks(list(scale_successes1.keys()), rotation=45)
         plt.yticks(range(repetitions + 1))
         plt.xlabel("Scale", fontsize=15)
@@ -301,4 +301,8 @@ def analyze_for_300_vary_ablation():
         plt.close()
 
 
-analyze_for_100_5_3_ablation()
+if __name__ == "__main__":
+    analyze_for_100_5_3()
+    analyze_for_300_vary()
+    analyze_for_100_5_3_ablation()
+    analyze_for_300_vary_ablation()

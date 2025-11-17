@@ -73,22 +73,33 @@ def sign(x):
 # Define variable
 x = sp.symbols('x')
 
-# Load the input polynomials
-P, Q = sys.argv[1], sys.argv[2]
-# Convert the input polynomials from string to sympy expressions
-P = sp.sympify(P)
-Q = sp.sympify(Q)
+# If a polynomial is given, use it
+if "x" in sys.argv[1]:
+    # Load the input polynomials
+    P, Q = sys.argv[1], sys.argv[2]
+    # Convert the input polynomials from string to sympy expressions
+    P = sp.sympify(P)
+    Q = sp.sympify(Q)
+    # Extract the polynomial degrees
+    DEG_P, DEG_Q = sp.Poly(P, x).degree(), sp.Poly(Q, x).degree()
+else:
+    P, Q = "Unknown", "Unknown"
+    DEG_P, DEG_Q = int(sys.argv[1]), int(sys.argv[2])
 
-# Calculate the polynomial degrees
-DEG_P, DEG_Q = sp.Poly(P, x).degree(), sp.Poly(Q, x).degree()
+
 DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA3]).to(DEVICE)
 
-# Calculate R
-R = expand(P.subs(x, Q))
-# Present the polynomials' coefficients as real values and not like fraction
-P = [int(c) for c in sp.Poly(P, x).all_coeffs()]
-Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
+# Parse expressions
+if "x" in sys.argv[1]:
+    # Calculate R
+    R = expand(P.subs(x, Q))
+    # Present the polynomials' coefficients as real values and not like fraction
+    P = [int(c) for c in sp.Poly(P, x).all_coeffs()]
+    Q = [int(c) for c in sp.Poly(Q, x).all_coeffs()]
+else:
+    R = sp.simplify(sys.argv[15])
+
 # Get r's coefficients
 Rs = torch.tensor(sp.Poly(R, x).all_coeffs()[::-1], dtype=torch.float64, requires_grad=True).to(DEVICE)
 
@@ -211,7 +222,7 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
                 return
             else:
                 lr = lr / 10

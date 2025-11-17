@@ -216,6 +216,44 @@ def reduce_solution_variance(Q, P, R):
     return min_variance["Q"], min_variance["P"]
 
 
+def is_decomposable_kozen_landau(f, x=None):
+    """
+    Returns True if f(x) is decomposable (exists f = g∘h)
+    using Kozen–Landau style critical-point GCD tests.
+    Does NOT return the decomposition.
+    """
+    if x is None:
+        x = list(f.free_symbols)[0]
+
+    n = sp.degree(f, gen=x)
+
+    # 1. degrees of possible inner polynomial h
+    divisors = [d for d in range(2, n) if n % d == 0]
+
+    if not divisors:
+        return False  # degree is prime → impossible to decompose
+
+    fprime = sp.diff(f, x)
+
+    # Find critical points (symbolic roots may be complicated)
+    crit_points = sp.solve(sp.Eq(fprime, 0), x)
+
+    # Cannot analyze if derivative has no roots (rare but possible)
+    if len(crit_points) == 0:
+        return False
+
+    # 2. For each critical point, test its fiber
+    for c in crit_points:
+        fc = f.subs(x, c)
+        g = sp.gcd(sp.simplify(fprime), sp.simplify(f - fc))
+
+        # If gcd has degree ≥ 1 → structure exists → decomposable
+        if sp.degree(g) >= 1:
+            return True
+
+    return False
+
+
 def j_to_bool(index, j):
     if j == index:
         return "0"
