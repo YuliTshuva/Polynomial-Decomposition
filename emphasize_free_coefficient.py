@@ -64,9 +64,36 @@ for i in range(10):
 working_dir = join("plots", "constant_explained")
 os.makedirs(working_dir, exist_ok=True)
 
-for c_i in sol_to_c:
-    sol = sol_to_c[c_i]
-    if sol is None:
-        continue
-    deviation = c_i - c
-    plot_bar(sol, deviation, save_path=join(working_dir, f"c_{c_i}.png"))
+# for c_i in sol_to_c:
+#     sol = sol_to_c[c_i]
+#     if sol is None:
+#         continue
+#     deviation = c_i - c
+#     plot_bar(sol, deviation, save_path=join(working_dir, f"c_{c_i}.png"))
+
+# Plot in one plot the solutions for c = 51 +/- 1, 2
+deviations = [0, 1, 2]
+fig, ax = plt.subplots(nrows=1, ncols=2*len(deviations) - 1, figsize=(20, 5))
+for idx, deviation in enumerate(deviations):
+    for sign in [-1, 1]:
+        c_i = c + sign * deviation
+        sol = sol_to_c[c_i]
+        if sol is None:
+            continue
+        center = len(deviations) - 1
+        a = np.array(sol)
+        ax[center + sign * deviation].bar(range(len(sol)), np.array(a > 0, dtype=np.float64) * a, color="royalblue", edgecolor="black")
+        ax[center + sign * deviation].bar(range(len(sol)),  np.array(a < 0, dtype=np.float64) * -a, color="red", edgecolor="black")
+        ax[center + sign * deviation].set_xticks(range(len(sol)))
+        ax[center + sign * deviation].set_xticklabels([f"b{5 - i}" for i in range(len(sol))])
+        ax[center + sign * deviation].set_yticks(ticks=np.abs(sol).astype(np.int64), labels=np.abs(sol).astype(np.int64))
+        ax[center + sign * deviation].set_xlabel("Coefficients", fontsize=15)
+        if center + sign * deviation == 0:
+            ax[center + sign * deviation].set_ylabel("Value", fontsize=15)
+        sign_str = "+" if sign == 1 else "-"
+        ax[center + sign * deviation].set_title(f"c = 51 {sign_str} {deviation}", fontsize=20)
+
+plt.suptitle("g's coefficients for varying free coefficient", fontsize=25)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig(join(working_dir, f"all_c_variations.png"))
+plt.close()

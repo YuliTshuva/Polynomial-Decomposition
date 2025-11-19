@@ -57,22 +57,23 @@ def hybrid_dataset():
     degree = 15
     deg_q = 3
     deg_p = degree // deg_q
-    scale = 100
+    low_scale = 100
+    high_scale = 1e11
     n_samples = 200
 
     for _ in range(n_samples // 2):
         # Decomposable case
-        q = sum([random_int(scale, allow_zero=(i != deg_q)) * x ** i for i in range(deg_q + 1)])
-        p = sum([random_int(scale, allow_zero=(i != deg_p)) * x ** i for i in range(deg_p + 1)])
+        q = sum([random_int(low_scale, allow_zero=(i != deg_q)) * x ** i for i in range(deg_q + 1)])
+        p = sum([random_int(low_scale, allow_zero=(i != deg_p)) * x ** i for i in range(deg_p + 1)])
         # Multiply them
-        r = p.subs(q, x).simplify()
+        r = p.subs(x, q).simplify()
         # Add a row to the df
         df.loc[df.shape[0]] = [r, 1, p, q]
 
     for _ in range(n_samples // 2):
         # Non-decomposable case
         # Generate a random polynomial of degree 15
-        r = sum([random_int(scale, allow_zero=(i != degree)) * x ** i for i in range(degree + 1)])
+        r = sum([random_int(high_scale, allow_zero=(i != degree)) * x ** i for i in range(degree + 1)])
         # Add a row to the df
         df.loc[df.shape[0]] = [r, 0, None, None]
 
@@ -92,7 +93,7 @@ def check_non_decomposable():
 
     for i in range(df.shape[0]):
         with open("job2_outs.txt", 'a') as f:
-            f.write(f"Checking row {i} / {df.shape[0]}...")
+            f.write(f"Checking row {i} / {df.shape[0]-1}\n")
         row = df.iloc[i]
         r = row["R(x)"]
         r = sp.sympify(r)
