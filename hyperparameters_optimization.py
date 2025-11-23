@@ -240,12 +240,12 @@ def main():
             hp_combination = get_hyperparameters_combination(train=train)
 
             hp_combination = {
-                "LR": 10,
+                "LR": 5,
                 "MIN_LR": 0.001,
                 "EARLY_STOPPING": 300,
-                "LAMBDA1": 2,
+                "LAMBDA1": 20,
                 "LAMBDA2": 1,
-                "LAMBDA3": 10000,
+                "LAMBDA3": 100000,
                 "FORCE_COEFFICIENTS": 4000,
             }
         else:
@@ -291,4 +291,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    analyze_results()

@@ -16,16 +16,16 @@ mode = "standard"  # standard / ablation / hybrid
 if mode == "standard":
     # Constants
     ATTEMPTS = 5
-    DATASETS = ["dataset_100_5_3.csv", "dataset_300_vary.csv", "dataset_hybrid_200_deg15.csv"]
+    DATASETS = ["dataset_100_5_3.csv", "dataset_300_vary.csv", "dataset_hybrid_1000_deg15.csv"]
 
     hp_combination = {
-        "LR": 10,
+        "LR": 5,
         "MIN_LR": 0.001,
         "EARLY_STOPPING": 300,
-        "LAMBDA1": 1,
-        "LAMBDA2": 1,
-        "LAMBDA3": 1000,
-        "FORCE_COEFFICIENTS": 4000,
+        "LAMBDA1": 20,
+        "LAMBDA2": 0.5,
+        "LAMBDA3": 100000,
+        "FORCE_COEFFICIENTS": 3000,
     }
 
     REGULARIZATION_DECAY = 0.85
@@ -43,7 +43,7 @@ if mode == "standard":
                 df["Decomposable"] = df["Decomposable"].astype(int)
 
             # Create the working directory if it doesn't exist
-            WORKING_DIR = join("output", dataset, train)
+            WORKING_DIR = join("output", dataset.split(".csv")[0], train)
             os.makedirs(WORKING_DIR, exist_ok=True)
 
             # Iterate through the dataset
@@ -53,11 +53,13 @@ if mode == "standard":
                 thread_dir = join(WORKING_DIR, f"thread_{i}")
 
                 # Note the first run
-                if not os.path.exists(thread_dir):
+                folder_exists = os.path.exists(thread_dir)
+                if not folder_exists:
+                    os.makedirs(thread_dir, exist_ok=True)
                     with open(join(thread_dir, "run_1.txt"), "w") as f:
                         f.write("")
 
-                if os.path.exists(thread_dir):
+                if folder_exists:
                     # Update the run number
                     run_file = [file for file in os.listdir(thread_dir) if "run_" in file][0]
                     run_num = int(run_file.split("_")[1].split(".")[0]) + 1
@@ -74,7 +76,7 @@ if mode == "standard":
 
                 # If a solution was not found, run again with decayed regularization
                 if not success:
-                    if dataset != "dataset_hybrid_200_deg15.csv":
+                    if dataset != "dataset_hybrid_1000_deg15.csv":
                         p = df.loc[i - 1, "P(x)"]
                         q = df.loc[i - 1, "Q(x)"]
                         args = ["python3", f"{train}.py", p, q, str(i), "1", "1", "1"]
