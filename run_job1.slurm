@@ -10,4 +10,4 @@
 # --- Your code below ---
 cd /cs/labs/dshahaf/yuli.tshuva/projects/polynomial_decomposition
 source venv/bin/activate
-python3 pipeline.py
+python3 hyperparameters_optimization.py

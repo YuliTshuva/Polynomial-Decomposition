@@ -73,6 +73,8 @@ def analyze_for_100_5_3():
     plt.tight_layout()
     plt.savefig(join("plots", "successes_per_scale_100_5_3.png"))
     plt.close()
+
+
 def analyze_for_hybrid_200():
     """
     combinations = [[3, 5]]
@@ -80,57 +82,35 @@ def analyze_for_hybrid_200():
     repetitions = 5
     """
     # Sum the successes
-    successes1, successes2, total_successes = 0, 0, 0
-    scale_successes1, scale_successes2, scale_successes = {}, {}, {}
-    repetitions = 5
+    successes = {}
 
     # The working directory
-    WORKING_DIR = join("output_dirs", "100_5_3")
+    WORKING_DIR = join("output_dirs", "hybrid_200", "train_17")
+    n_samples = len(os.listdir(WORKING_DIR))
 
-    for thread in os.listdir(join(WORKING_DIR, "train_18")):
-        thread_dir1 = join(WORKING_DIR, "train_17", thread)
-        thread_dir2 = join(WORKING_DIR, "train_18", thread)
-        with open(join(thread_dir1, "polynomials.txt"), "r") as f:
-            loss1 = float(f.readlines()[6].split("Loss = ")[1].strip())
-        with open(join(thread_dir2, "polynomials.txt"), "r") as f:
-            loss2 = float(f.readlines()[6].split("Loss = ")[1].strip())
+    for thread in os.listdir(WORKING_DIR):
+        thread_dir = join(WORKING_DIR, thread)
+        with open(join(thread_dir, "polynomials.txt"), "r") as f:
+            loss = float(f.readlines()[6].split("Loss = ")[1].strip())
 
-        # Calculate the scale
-        scale = ((int(thread.split("_")[1]) - 1) // repetitions + 1) * 10
-        if scale not in scale_successes1:
-            scale_successes1[scale] = 0
-        if scale not in scale_successes2:
-            scale_successes2[scale] = 0
-        if scale not in scale_successes:
-            scale_successes[scale] = 0
-
-        # Check if the model succeeded
-        if loss1 < 1e-5:
-            successes1 += 1
-            scale_successes1[scale] += 1
-        if loss2 < 1e-5:
-            successes2 += 1
-            scale_successes2[scale] += 1
-        if loss1 < 1e-5 or loss2 < 1e-5:
-            total_successes += 1
-            scale_successes[scale] += 1
+        if loss < 1e-5:
+            successes[int(thread.split("_")[-1])] = 1
+        else:
+            successes[int(thread.split("_")[-1])] = 0
 
     plt.figure(figsize=(8, 5))
-    plt.title(f"Successes per scale", fontsize=20)
-    xs = np.array(list(scale_successes1.keys()))
-    ys1, ys2 = list(scale_successes1.values()), list(scale_successes2.values())
-    width, space = 2, 2
-    plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label=f"Integer case ({successes1})")
-    plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label=f"Normalized case ({successes2})")
-    plt.bar(xs + space, list(scale_successes.values()), color="turquoise", width=width, edgecolor="black",
-            label=f"Total ({total_successes})")
-    plt.xticks(list(scale_successes1.keys()), rotation=45)
-    plt.yticks(range(repetitions + 1))
-    plt.xlabel("Scale", fontsize=15)
-    plt.ylabel("Number of successes", fontsize=15)
+    plt.title(f"Success of decomposition", fontsize=20)
+    xs = np.array(sorted(list(successes.keys())))
+    ys = np.array([successes[x] for x in xs])
+    plt.bar(xs[:n_samples//2], ys[:n_samples//2], color="royalblue", label=f"Decomposable case ({np.sum(ys[:n_samples//2])} / {n_samples//2})")
+    plt.bar(xs[n_samples//2: n_samples], ys[n_samples//2: n_samples], color="hotpink", label=f"Non-Decomposable case ({np.sum(ys[n_samples//2:n_samples])} / {n_samples//2})")
+    plt.xticks(xs[::n_samples//10] - 1, rotation=0)
+    plt.yticks([0, 1])
+    plt.xlabel("Experiment", fontsize=15)
+    plt.ylabel("Success", fontsize=15)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(join("plots", "successes_per_scale_100_5_3.png"))
+    plt.savefig(join("plots", "hybrid_200_results.png"))
     plt.close()
 
 
@@ -188,7 +168,8 @@ def analyze_for_300_vary():
         ys1, ys2 = list(scale_successes1.values()), list(scale_successes2.values())
         width, space = 2, 2
         plt.bar(xs, ys1, color="royalblue", width=width, edgecolor="black", label=f"Integer case ({successes1})")
-        plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black", label=f"Normalized case ({successes2})")
+        plt.bar(xs - space, ys2, color="hotpink", width=width, edgecolor="black",
+                label=f"Normalized case ({successes2})")
         plt.bar(xs + space, list(scale_successes.values()), color="turquoise", width=width, edgecolor="black",
                 label=f"Total ({total_successes})")
         plt.xticks(list(scale_successes1.keys()), rotation=45)
@@ -361,7 +342,4 @@ def analyze_for_300_vary_ablation():
 
 
 if __name__ == "__main__":
-    analyze_for_100_5_3()
-    analyze_for_300_vary()
-    analyze_for_100_5_3_ablation()
-    analyze_for_300_vary_ablation()
+    analyze_for_hybrid_200()

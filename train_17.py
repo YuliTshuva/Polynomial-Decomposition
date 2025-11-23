@@ -252,6 +252,7 @@ def train(train_id: int):
                     f.write(f"Epoch {epoch}: Loss = 0\n")
                     f.write(f"p(x) = {ps_result}.\n")
                     f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
+                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
                 return True
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):

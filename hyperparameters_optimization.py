@@ -178,6 +178,10 @@ def analyze_results(train="train_17"):
     plt.savefig(join("plots", f"{train}_hp_optimization_results.png"))
     plt.show()
 
+    # Find what trail hyperparameters had the best score
+    best_trail = max(trail_to_score, key=trail_to_score.get)
+    print(f"Best trail is trail {best_trail} with score {trail_to_score[best_trail]}/{len(thread_dirs)}")
+
 
 def extract_hp_for_dir(hp_path, train):
     # Read the hyperparameters file
@@ -236,13 +240,13 @@ def main():
             hp_combination = get_hyperparameters_combination(train=train)
 
             hp_combination = {
-                "LR": 0.1,
+                "LR": 10,
                 "MIN_LR": 0.001,
-                "EARLY_STOPPING": 100,
-                "LAMBDA1": 100,
-                "LAMBDA2": 100,
-                "LAMBDA3": 1,
-                "FORCE_COEFFICIENTS": 1,
+                "EARLY_STOPPING": 300,
+                "LAMBDA1": 2,
+                "LAMBDA2": 1,
+                "LAMBDA3": 10000,
+                "FORCE_COEFFICIENTS": 4000,
             }
         else:
             hp_path = join(working_dir, f"trail_{trail_num}", "hyperparameters.txt")
@@ -287,4 +291,4 @@ def main():
 
 
 if __name__ == "__main__":
-    analyze_results()
+    main()
