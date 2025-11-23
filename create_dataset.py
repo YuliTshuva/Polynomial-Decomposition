@@ -59,7 +59,7 @@ def hybrid_dataset():
     deg_p = degree // deg_q
     low_scale = 100
     high_scale = 1e11
-    n_samples = 200
+    n_samples = 1000
 
     for _ in range(n_samples // 2):
         # Decomposable case
@@ -78,7 +78,7 @@ def hybrid_dataset():
         df.loc[df.shape[0]] = [r, 0, None, None]
 
     # Save the df to a csv file
-    df.to_csv(join("data", "dataset_hybrid_200_deg15.csv"), index=False)
+    df.to_csv(join("data", "dataset_hybrid_1000_deg15.csv"), index=False)
 
 
 def check_non_decomposable():
@@ -86,13 +86,13 @@ def check_non_decomposable():
     Check that the non-decomposable polynomials are indeed non-decomposable.
     """
     # Load the dataset
-    df = pd.read_csv(join("data", "dataset_hybrid_200_deg15.csv"))
+    df = pd.read_csv(join("data", "dataset_hybrid_1000_deg15.csv"))
 
     df["Decomposable"] = df["Decomposable"].astype(int)
     df = df[df["Decomposable"] == 0]
 
     for i in range(df.shape[0]):
-        with open("job2_outs.txt", 'a') as f:
+        with open("job2_outs.txt", 'w') as f:
             f.write(f"Checking row {i} / {df.shape[0]-1}\n")
         row = df.iloc[i]
         r = row["R(x)"]
@@ -102,5 +102,4 @@ def check_non_decomposable():
 
 
 if __name__ == "__main__":
-    # Create the hybrid dataset
     check_non_decomposable()
