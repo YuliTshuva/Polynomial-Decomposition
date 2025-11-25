@@ -33,7 +33,8 @@ if mode == "standard":
     # Define the regularization decay as a function of the run number
     run_proces = lambda num: 1 if num <= 2 else REGULARIZATION_DECAY ** (num - 2)
 
-    for _ in range(ATTEMPTS):
+    stop_loop = False
+    while not stop_loop:
         # Iterate through the datasets
         for dataset in DATASETS:
             # Load the dataset
@@ -63,9 +64,9 @@ if mode == "standard":
                     # Update the run number
                     run_file = [file for file in os.listdir(thread_dir) if "run_" in file][0]
                     run_num = int(run_file.split("_")[1].split(".")[0]) + 1
-                    os.remove(join(thread_dir, run_file))
-                    with open(join(thread_dir, f"run_{run_num}.txt"), "w") as f:
-                        f.write("")
+                    if run_num > ATTEMPTS:
+                        stop_loop = True
+                        break
 
                     # Check the result
                     result_path = join(thread_dir, "polynomials.txt")
@@ -73,6 +74,10 @@ if mode == "standard":
                         result = float(f.readlines()[6].split("Loss = ")[1].strip())
                         if result < 1:
                             success = True
+                        else:
+                            os.remove(join(thread_dir, run_file))
+                            with open(join(thread_dir, f"run_{run_num}.txt"), "w") as f:
+                                f.write("")
 
                 # If a solution was not found, run again with decayed regularization
                 if not success:
@@ -103,6 +108,8 @@ if mode == "standard":
                             args += [WORKING_DIR]
                             args += ["None"]
                         else:
+                            if run_num > 1:
+                                continue
                             args = ["python3", f"{train}.py", "5", "3", str(i), "1", "1", "1"]
                             args += [str(hp_combination["LR"]), str(hp_combination["MIN_LR"]),
                                      str(hp_combination["EARLY_STOPPING"]),

@@ -35,7 +35,7 @@ def baseline_dataset():
     df = pd.DataFrame(columns=["P(x)", "Q(x)"])
 
     # Run up the degrees
-    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 8]]
+    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
     scales = range(10, 201, 10)
     repetitions = 3
     for deg_q, deg_p in combinations:
@@ -161,4 +161,4 @@ def compare_coefficients():
 
 
 if __name__ == "__main__":
-    check_non_decomposable()
+    pass
