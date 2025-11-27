@@ -19,13 +19,13 @@ if mode == "standard":
     DATASETS = ["dataset_100_5_3.csv", "dataset_300_vary.csv", "dataset_hybrid_1000_deg15.csv"]
 
     hp_combination = {
-        "LR": 5,
+        "LR": 10,
         "MIN_LR": 0.001,
         "EARLY_STOPPING": 300,
-        "LAMBDA1": 20,
-        "LAMBDA2": 0.5,
-        "LAMBDA3": 100000,
-        "FORCE_COEFFICIENTS": 3000,
+        "LAMBDA1": 1,
+        "LAMBDA2": 1,
+        "LAMBDA3": 1000,
+        "FORCE_COEFFICIENTS": 4000,
     }
 
     REGULARIZATION_DECAY = 0.85
@@ -33,8 +33,7 @@ if mode == "standard":
     # Define the regularization decay as a function of the run number
     run_proces = lambda num: 1 if num <= 2 else REGULARIZATION_DECAY ** (num - 2)
 
-    stop_loop = False
-    while not stop_loop:
+    while True:
         # Iterate through the datasets
         for dataset in DATASETS:
             # Load the dataset
@@ -65,8 +64,7 @@ if mode == "standard":
                     run_file = [file for file in os.listdir(thread_dir) if "run_" in file][0]
                     run_num = int(run_file.split("_")[1].split(".")[0]) + 1
                     if run_num > ATTEMPTS:
-                        stop_loop = True
-                        break
+                        continue
 
                     # Check the result
                     result_path = join(thread_dir, "polynomials.txt")
@@ -81,6 +79,8 @@ if mode == "standard":
 
                 # If a solution was not found, run again with decayed regularization
                 if not success:
+                    with open("pipeline_out.txt", "a") as f:
+                        f.write(f"Dataset: {dataset}, Thread: {i}, Run: {run_num}\n")
                     if dataset != "dataset_hybrid_1000_deg15.csv":
                         p = df.loc[i - 1, "P(x)"]
                         q = df.loc[i - 1, "Q(x)"]

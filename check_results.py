@@ -116,11 +116,11 @@ def analyze_for_hybrid_200():
 
 def analyze_for_300_vary():
     """
-    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 8]]
+    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
     scales = range(10, 201, 10)
     repetitions = 3
     """
-    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 8]]
+    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
 
     # Modify the working directory
     WORKING_DIR = join("output_dirs", "300_vary")
