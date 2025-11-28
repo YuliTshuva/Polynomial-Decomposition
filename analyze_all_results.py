@@ -74,6 +74,9 @@ def plot_results(results, run):
     run_plots_dir = join(PLOTS_DIR, f"run_{run}")
     os.makedirs(run_plots_dir, exist_ok=True)
 
+    # Create a fig and axes for the plots
+    fig, ax = plt.subplots(2, 3, figsize=(20, 12))
+
     # Sum the successes
     dataset = "dataset_100_5_3"
     repetitions = 5
@@ -94,19 +97,15 @@ def plot_results(results, run):
     # Total successes
     successes = sum(successes.values())
 
-    plt.figure(figsize=(8, 5))
-    plt.title(f"Successes per scale", fontsize=20)
+    ax[1, 2].set_title(f"Successes per scale", fontsize=20)
     xs, ys = np.array(list(scale_successes.keys())), list(scale_successes.values())
     width, space = 2, 2
-    plt.bar(xs, ys, color="royalblue", width=width, edgecolor="black", label=f"Total Success: ({successes})")
-    plt.xticks(xs, rotation=45)
-    plt.yticks(range(repetitions + 1))
-    plt.xlabel("Scale", fontsize=15)
-    plt.ylabel("Number of successes", fontsize=15)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(join(run_plots_dir, "successes_per_scale_100_5_3.png"))
-    plt.close()
+    ax[1, 2].bar(xs, ys, color="royalblue", width=width, edgecolor="black", label=f"Total Success: ({successes})")
+    ax[1, 2].set_xticks(xs, labels=xs, rotation=45)
+    ax[1, 2].set_yticks(range(repetitions + 1))
+    ax[1, 2].set_xlabel("Scale", fontsize=15)
+    ax[1, 2].set_ylabel("Number of successes", fontsize=15)
+    ax[1, 2].legend()
 
     # Update the dataset
     dataset = "dataset_300_vary"
@@ -131,19 +130,23 @@ def plot_results(results, run):
                 successes += 1
                 scale_successes[scale] += 1
 
-        plt.figure(figsize=(8, 5))
-        plt.title(f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
+        ax[0 if i < 3 else 1, i % 3].set_title(
+            f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
         xs, ys = np.array(list(scale_successes.keys())), list(scale_successes.values())
         width, space = 2, 2
-        plt.bar(xs, ys, color="royalblue", width=width, edgecolor="black", label=f"Total Success: ({successes})")
-        plt.xticks(xs, rotation=45)
-        plt.yticks(range(repetitions + 1))
-        plt.xlabel("Scale", fontsize=15)
-        plt.ylabel("Number of successes", fontsize=15)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(join(run_plots_dir, f"successes_per_scale_300_vary_{combinations[i][1]}_{combinations[i][0]}.png"))
-        plt.close()
+        ax[0 if i < 3 else 1, i % 3].bar(xs, ys, color="royalblue", width=width, edgecolor="black",
+                                                   label=f"Total Success: ({successes})")
+        ax[0 if i < 3 else 1, i % 3].set_xticks(xs, labels=xs, rotation=45)
+        ax[0 if i < 3 else 1, i % 3].set_yticks(range(repetitions + 1))
+        ax[0 if i < 3 else 1, i % 3].set_xlabel("Scale", fontsize=15)
+        ax[0 if i < 3 else 1, i % 3].set_ylabel("Number of successes", fontsize=15)
+        ax[0 if i < 3 else 1, i % 3].legend()
+
+    # Save the figure
+    fig.suptitle(f"Successes per scale for run {run}", fontsize=30)
+    fig.tight_layout()
+    fig.savefig(join(run_plots_dir, f"results_run_{run}.png"))
+    plt.close()
 
     # Count the success amount for hybrid dataset
     dataset = "dataset_hybrid_1000_deg15"
@@ -160,6 +163,7 @@ def plot_results(results, run):
         run_to_successes[run] = successes
 
     # Plot the results
+    save_path = join(PLOTS_DIR, "successes_per_attempts_hybrid_1000_deg15.png")
     plt.figure(figsize=(8, 5))
     plt.title(f"Successes per attempts for hybrid dataset", fontsize=20)
     xs, ys = np.array(list(run_to_successes.keys())), list(run_to_successes.values())
@@ -171,7 +175,7 @@ def plot_results(results, run):
     plt.ylabel("Successes", fontsize=15)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(join(PLOTS_DIR, "successes_per_attempts_hybrid_1000_deg15.png"))
+    plt.savefig(save_path)
     plt.close()
 
 
