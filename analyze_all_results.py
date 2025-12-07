@@ -4,6 +4,7 @@ Analyzing all the results of the overall run.
 """
 
 # Imports
+import torch
 import os
 from os.path import join
 from sklearn.ensemble import RandomForestClassifier
@@ -17,6 +18,7 @@ import optuna
 import pickle
 import numpy as np
 from matplotlib import rcParams
+from fastai.tabular.all import *
 
 # Constants
 OUTPUT_DIR = "output_best_hp"
@@ -31,7 +33,7 @@ K_FOLDS = 4
 rcParams["font.family"] = "Times New Roman"
 
 
-def get_all_results():
+def get_all_results(output_dir):
     # Define a dictionary to hold the results
     results = {}
 
@@ -41,7 +43,7 @@ def get_all_results():
         results[dataset] = {}
 
         # Define dataset path
-        dataset_path = join(OUTPUT_DIR, dataset, TRAIN)
+        dataset_path = join(output_dir, dataset, TRAIN)
 
         # Iterate through the threads
         for thread in os.listdir(dataset_path):
@@ -69,9 +71,10 @@ def get_all_results():
     return results
 
 
-def plot_results(results, run):
+def plot_results(results1, results2, run):
     # Create a directory for the run plots
-    run_plots_dir = join(PLOTS_DIR, f"run_{run}")
+    # run_plots_dir = join(PLOTS_DIR, f"run_{run}")
+    run_plots_dir = PLOTS_DIR
     os.makedirs(run_plots_dir, exist_ok=True)
 
     # Create a fig and axes for the plots
@@ -81,30 +84,39 @@ def plot_results(results, run):
     dataset = "dataset_100_5_3"
     repetitions = 5
 
-    dct = results[dataset]
-    successes = {}
-    for thread in dct:
-        successes[thread] = dct[thread]["success"] if dct[thread]["run_success"] <= run else 0
+    dct1, dct2 = results1[dataset], results2[dataset]
+    successes1, successes2 = {}, {}
+    for thread in dct1:
+        successes1[thread] = dct1[thread]["success"] if dct1[thread]["run_success"] <= run else 0
+        successes2[thread] = dct2[thread]["success"] if dct2[thread]["run_success"] <= run else 0
 
-    scale_successes = {}
-    for thread in successes:
+    scale_successes1, scale_successes2 = {}, {}
+    for thread in successes1:
         scale = ((thread - 1) // repetitions + 1) * 10
-        if scale not in scale_successes:
-            scale_successes[scale] = successes[thread]
+        if scale not in scale_successes1:
+            scale_successes1[scale] = successes1[thread]
         else:
-            scale_successes[scale] += successes[thread]
+            scale_successes1[scale] += successes1[thread]
+        if scale not in scale_successes2:
+            scale_successes2[scale] = successes2[thread]
+        else:
+            scale_successes2[scale] += successes2[thread]
 
     # Total successes
-    successes = sum(successes.values())
+    successes1, successes2 = sum(successes1.values()), sum(successes2.values())
 
-    ax[1, 2].set_title(f"Successes per scale", fontsize=20)
-    xs, ys = np.array(list(scale_successes.keys())), list(scale_successes.values())
+    ax[1, 2].set_title(f"Successes per scale - 100", fontsize=20)
+    xs, ys1, ys2 = np.array(list(scale_successes1.keys())), list(scale_successes1.values()), list(
+        scale_successes2.values())
     width, space = 2, 2
-    ax[1, 2].bar(xs, ys, color="royalblue", width=width, edgecolor="black", label=f"Total Success: ({successes})")
+    ax[1, 2].bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black",
+                 label=f"Best hp ({successes1})")
+    ax[1, 2].bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black",
+                 label=f"Default hp ({successes2})")
     ax[1, 2].set_xticks(xs, labels=xs, rotation=45)
     ax[1, 2].set_yticks(range(repetitions + 1))
     ax[1, 2].set_xlabel("Scale", fontsize=15)
-    ax[1, 2].set_ylabel("Number of successes", fontsize=15)
+    ax[1, 2].set_ylabel("Successes", fontsize=15)
     ax[1, 2].legend()
 
     # Update the dataset
@@ -114,69 +126,86 @@ def plot_results(results, run):
 
     for i in range(len(combinations)):
         # Sum the successes
-        successes, scale_successes = 0, {}
+        successes1, successes2, scale_successes1, scale_successes2 = 0, 0, {}, {}
         repetitions = 3
-        dct = results[dataset]
-        for thread in dct:
+        dct1, dct2 = results1[dataset], results2[dataset]
+        for thread in dct1:
             if thread > 60 * (i + 1) or thread <= 60 * i:
                 continue
             # Calculate the scale
             scale = ((thread - 60 * i - 1) // repetitions + 1) * 10
-            if scale not in scale_successes:
-                scale_successes[scale] = 0
+            if scale not in scale_successes1:
+                scale_successes1[scale] = 0
+            if scale not in scale_successes2:
+                scale_successes2[scale] = 0
 
             # Check if the model succeeded
-            if dct[thread]["success"] and dct[thread]["run_success"] <= run:
-                successes += 1
-                scale_successes[scale] += 1
+            if dct1[thread]["success"] and dct1[thread]["run_success"] <= run:
+                successes1 += 1
+                scale_successes1[scale] += 1
+            if dct2[thread]["success"] and dct2[thread]["run_success"] <= run:
+                successes2 += 1
+                scale_successes2[scale] += 1
 
         ax[0 if i < 3 else 1, i % 3].set_title(
             f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
-        xs, ys = np.array(list(scale_successes.keys())), list(scale_successes.values())
+        xs, ys1, ys2 = np.array(list(scale_successes1.keys())), list(scale_successes1.values()), list(
+            scale_successes2.values())
         width, space = 2, 2
-        ax[0 if i < 3 else 1, i % 3].bar(xs, ys, color="royalblue", width=width, edgecolor="black",
-                                                   label=f"Total Success: ({successes})")
+        ax[0 if i < 3 else 1, i % 3].bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black",
+                                         label=f"Best hp ({successes1})")
+        ax[0 if i < 3 else 1, i % 3].bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black",
+                                         label=f"Default hp ({successes2})")
         ax[0 if i < 3 else 1, i % 3].set_xticks(xs, labels=xs, rotation=45)
         ax[0 if i < 3 else 1, i % 3].set_yticks(range(repetitions + 1))
         ax[0 if i < 3 else 1, i % 3].set_xlabel("Scale", fontsize=15)
-        ax[0 if i < 3 else 1, i % 3].set_ylabel("Number of successes", fontsize=15)
+        ax[0 if i < 3 else 1, i % 3].set_ylabel("Successes", fontsize=15)
         ax[0 if i < 3 else 1, i % 3].legend()
 
     # Save the figure
-    fig.suptitle(f"Successes per scale for run {run}", fontsize=30)
+    fig.suptitle(f"Iteration {run}", fontsize=30)
     fig.tight_layout()
     fig.savefig(join(run_plots_dir, f"results_run_{run}.png"))
-    plt.close()
+    plt.show()
 
     # Count the success amount for hybrid dataset
     dataset = "dataset_hybrid_1000_deg15"
-    dct = results[dataset]
+    dct1, dct2 = results1[dataset], results2[dataset]
     runs = 5
-    run_to_successes = {run: 0 for run in range(1, runs + 1)}
+    run_to_successes1 = {run: 0 for run in range(1, runs + 1)}
+    run_to_successes2 = {run: 0 for run in range(1, runs + 1)}
     for run in range(1, runs + 1):
-        successes = 0
-        for thread in dct:
-            success = dct[thread]["success"] if dct[thread]["run_success"] <= run else 0
-            successes += success
+        successes1, successes2 = 0, 0
+        for thread in dct1:
+            success = dct1[thread]["success"] if dct1[thread]["run_success"] <= run else 0
+            successes1 += success
             if success == 1 and thread > 500:
                 raise Exception(f"A non-decomposable polynomial ({thread}) was marked as success.")
-        run_to_successes[run] = successes
+            success = dct2[thread]["success"] if dct2[thread]["run_success"] <= run else 0
+            successes2 += success
+            if success == 1 and thread > 500:
+                raise Exception(f"A non-decomposable polynomial ({thread}) was marked as success.")
+        run_to_successes1[run] = successes1
+        run_to_successes2[run] = successes2
 
     # Plot the results
     save_path = join(PLOTS_DIR, "successes_per_attempts_hybrid_1000_deg15.png")
-    plt.figure(figsize=(8, 5))
-    plt.title(f"Successes per attempts for hybrid dataset", fontsize=20)
-    xs, ys = np.array(list(run_to_successes.keys())), list(run_to_successes.values())
-    width, space = 0.4, 0.2
-    plt.bar(xs, ys, color="royalblue", width=width, edgecolor="black", label=f"Total Success: ({ys[-1]})")
-    plt.xticks(xs, rotation=45)
-    plt.yticks([max(ys)])
-    plt.xlabel("Amount of attempts", fontsize=15)
-    plt.ylabel("Successes", fontsize=15)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(save_path)
-    plt.close()
+    if run == 1:
+        plt.figure(figsize=(8, 5))
+        plt.title(f"Successes per attempts for hybrid dataset", fontsize=20)
+        xs, ys1, ys2 = np.array(list(run_to_successes1.keys())), list(run_to_successes1.values()), list(
+            run_to_successes2.values())
+        width, space = 2, 2
+        plt.bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black", label=f"Best hp ({ys1[-1]})")
+        plt.bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black", label=f"Best hp ({ys2[-1]})")
+        plt.xticks(xs)
+        plt.yticks([max(max(ys1), max(ys2))])
+        plt.xlabel("Amount of attempts", fontsize=15)
+        plt.ylabel("Successes", fontsize=15)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.show()
 
 
 def classify_results(results):
@@ -220,6 +249,15 @@ def classify_results(results):
     # Drop the polynomial column
     df.drop(["R(x)"], axis=1, inplace=True)
 
+    # Subsample indices such that the dataset is balanced
+    decomposable_indices = y[y == 1].index
+    non_decomposable_indices = y[y == 0].index
+    sampled_decomposable_indices = np.random.choice(decomposable_indices, size=len(non_decomposable_indices),
+                                                    replace=False)
+    balanced_indices = np.concatenate([non_decomposable_indices, sampled_decomposable_indices])
+    df = df.loc[balanced_indices].reset_index(drop=True)
+    y = y.loc[balanced_indices].reset_index(drop=True)
+
     # Split the dataset into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=42)
 
@@ -245,7 +283,7 @@ def classify_results(results):
         cv_score = cross_val_score(
             model, X_train, y_train,
             cv=K_FOLDS,
-            scoring="roc_auc",
+            scoring="accuracy",
             n_jobs=N_JOBS
         ).mean()
 
@@ -266,6 +304,27 @@ def classify_results(results):
         n_jobs=N_JOBS
     )
 
+    # Create a simple MLP model using fastai
+    mlp_df = df.copy()
+    mlp_df["target"] = y
+    dls = TabularDataLoaders.from_df(
+        mlp_df.loc[X_train.index],
+        procs=[Normalize],
+        cont_names=df.columns.tolist(),
+        cat_names=[],
+        y_names='target',
+        bs=64
+    )
+
+    learn = tabular_learner(
+        dls,
+        layers=[200, 100, 50],  # MLP architecture
+        lr=1e-3,
+        metrics=accuracy
+    )
+
+    learn.fit_one_cycle(5)
+
     best_model.fit(X_train, y_train)
 
     # Evaluate on the held-out test set
@@ -273,13 +332,26 @@ def classify_results(results):
     test_acc = accuracy_score(y_test, test_pred)
     test_auc = roc_auc_score(y_test, test_pred)
 
-    print("\n\nTest Accuracy of best model:", test_acc)
-    print("\n\nTest AUC of best model:", test_auc)
+    print("\n\nRF Test Accuracy of best model:", test_acc)
+    print("\n\nRF Test AUC of best model:", test_auc)
+
+    # Predict using the MLP model
+    mlp_test_dl = dls.test_dl(mlp_df.loc[X_test.index])
+    mlp_preds, _ = learn.get_preds(dl=mlp_test_dl)
+    mlp_test_pred = mlp_preds.argmax(dim=1)
+    mlp_test_acc = accuracy_score(y_test, mlp_test_pred)
+    mlp_test_auc = roc_auc_score(y_test, mlp_preds)
+    print("\n\nMLP Test Accuracy of best model:", mlp_test_acc)
+    print("\n\nMLP Test AUC of best model:", mlp_test_auc)
 
     # Save the model as a pickle file
     model_path = join(CLASSIFIER_DIR, f"{dataset}_rf_model.pkl")
     with open(model_path, "wb") as f:
         pickle.dump(best_model, f)
+
+    # Also save the MLP model
+    mlp_model_path = join(CLASSIFIER_DIR, f"{dataset}_mlp_model.pkl")
+    learn.export(mlp_model_path)
 
     # Save the dataset
     X_train.to_csv(join(CLASSIFIER_DIR, f"X_train.csv"), index=False)
@@ -321,13 +393,13 @@ def view_results():
 
 def main():
     # Get the model's results
-    results = get_all_results()
+    results1, results2 = get_all_results("output_best_hp"), get_all_results("output_default_hp")
 
     # Set the amount of runs
-    runs = 5
+    runs = 6
     for run in range(1, runs + 1):
         # Plot the results
-        plot_results(results, run)
+        plot_results(results1, results2, run)
 
 
 if __name__ == "__main__":

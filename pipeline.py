@@ -11,27 +11,35 @@ from functions import *
 
 # Set train file
 train = "train_17"  # 18
-mode = "standard"  # standard / ablation / hybrid
+mode = "ablation"  # standard / ablation / hybrid
 
 if mode == "standard":
     # Constants
-    ATTEMPTS = 5
+    ATTEMPTS = 6
     DATASETS = ["dataset_100_5_3.csv", "dataset_300_vary.csv", "dataset_hybrid_1000_deg15.csv"]
 
     hp_combination = {
-        "LR": 10,
+        "LR": 5,
         "MIN_LR": 0.001,
         "EARLY_STOPPING": 300,
-        "LAMBDA1": 1,
-        "LAMBDA2": 1,
-        "LAMBDA3": 1000,
-        "FORCE_COEFFICIENTS": 4000,
+        "LAMBDA1": 20,
+        "LAMBDA2": 0.5,
+        "LAMBDA3": 100000,
+        "FORCE_COEFFICIENTS": 3000
     }
 
     REGULARIZATION_DECAY = 0.85
 
-    # Define the regularization decay as a function of the run number
-    run_proces = lambda num: 1 if num <= 2 else REGULARIZATION_DECAY ** (num - 2)
+
+    def run_proces(num):
+        if num <= 2:
+            return 1
+        else:
+            if num <= 5:
+                return REGULARIZATION_DECAY ** (num - 2)
+            else:
+                return 0
+
 
     while True:
         # Iterate through the datasets
@@ -43,7 +51,7 @@ if mode == "standard":
                 df["Decomposable"] = df["Decomposable"].astype(int)
 
             # Create the working directory if it doesn't exist
-            WORKING_DIR = join("output", dataset.split(".csv")[0], train)
+            WORKING_DIR = join("output_best_hp", dataset.split(".csv")[0], train)
             os.makedirs(WORKING_DIR, exist_ok=True)
 
             # Iterate through the dataset
@@ -123,16 +131,34 @@ if mode == "standard":
                     subprocess.run(args=args)
 
 if "ablation" == mode:
+    df = pd.read_csv(join("data", "dataset_300_vary.csv"))
     # Iterate through the dataset
     for i, (p, q) in enumerate(zip(df['P(x)'], df['Q(x)']), start=1):
+        if i < 241:
+            continue
         for j in range(3):
-            if os.path.exists(
-                    join("output_dirs", f"{train}_{j_to_bool(0, j)}{j_to_bool(1, j)}{j_to_bool(2, j)}", f"thread_{i}")):
+            if os.path.exists(join("output_dirs", "300_vary", f"{train}_{j_to_bool(0, j)}{j_to_bool(1, j)}{j_to_bool(2, j)}", f"thread_{i}")):
                 print(
                     f"[{train}_{j_to_bool(0, j)}{j_to_bool(1, j)}{j_to_bool(2, j)}] Thread {i} already exists, skipping...")
-            else:
-                subprocess.run(
-                    args=["python", f"{train}.py", p, q, str(i), j_to_bool(0, j), j_to_bool(1, j), j_to_bool(2, j)], )
+                continue
+            print(
+                f"[{train}_{j_to_bool(0, j)}{j_to_bool(1, j)}{j_to_bool(2, j)}] Thread {i} started.")
+            args = ["python", f"{train}.py", p, q, str(i), j_to_bool(0, j), j_to_bool(1, j), j_to_bool(2, j)]
+            args += ["10", "0.001", "300", "1", "1", "1000", "4000"]
+            args += [join("output_dirs", "300_vary", f"{train}_{j_to_bool(0, j)}{j_to_bool(1, j)}{j_to_bool(2, j)}")]
+            args += ["None"]
+            subprocess.run(args=args, )
+
+        if os.path.exists(join("output_dirs", "300_vary", f"{train}", f"thread_{i}")):
+            print(
+                f"[{train}] Thread {i} already exists, skipping...")
+            continue
+        print(f"[{train}] Thread {i} started.")
+        args = ["python", f"{train}.py", p, q, str(i), "1", "1", "1"]
+        args += ["10", "0.001", "300", "1", "1", "1000", "4000"]
+        args += [join("output_dirs", "300_vary", f"{train}")]
+        args += ["None"]
+        subprocess.run(args=args, )
 
 if mode == "hybrid":
     # Constants

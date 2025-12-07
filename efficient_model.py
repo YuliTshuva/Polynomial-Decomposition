@@ -364,3 +364,74 @@ class EfficientPolynomialSearch_16_2(nn.Module):
     def q_high_degree_regularization(self, n) -> torch.Tensor:
         # Penalize high degree coefficients of Q
         return torch.abs(torch.pow(self.Q[-1] - torch.round(self.Q[-1]), n))
+
+
+
+class EfficientPolynomialSearch_14_2(nn.Module):
+    """
+    Polynomial decomposition using PyTorch.
+
+    If the initialization is good, it is perfect. Else it will just not work.
+    """
+
+    def __init__(self):
+        """
+        Initialize the polynomial decomposition module.
+
+        Args:
+            degree (int): Degree of the polynomial.
+        """
+        super(EfficientPolynomialSearch_14_2, self).__init__()
+        # Set slack values for compilation
+        degree, deg_q = 16, 4
+        # Set the degree of R
+        self.degree = 14
+        self.deg_q = 2
+        self.deg_p = self.degree // self.deg_q
+
+        # Define the coefficients for P and Q
+        self.P = nn.Parameter(torch.randn(self.deg_p + 1, dtype=torch.float64) / 10000)
+        self.Q = nn.Parameter(torch.randn(self.deg_q + 1, dtype=torch.float64) / 10000)
+
+    def forward(self) -> torch.Tensor:
+        output = torch.zeros(self.degree + 1, dtype=torch.float64)
+
+        # Update the output by the polynomial
+        output[0] = self.P[0] + self.P[1]*self.Q[0] + self.P[2]*self.Q[0]**2 + self.P[3]*self.Q[0]**3 + self.P[4]*self.Q[0]**4 + self.P[5]*self.Q[0]**5 + self.P[6]*self.Q[0]**6 + self.P[7]*self.Q[0]**7
+        output[1] = self.P[1]*self.Q[1] + 2*self.P[2]*self.Q[0]*self.Q[1] + 3*self.P[3]*self.Q[0]**2*self.Q[1] + 4*self.P[4]*self.Q[0]**3*self.Q[1] + 5*self.P[5]*self.Q[0]**4*self.Q[1] + 6*self.P[6]*self.Q[0]**5*self.Q[1] + 7*self.P[7]*self.Q[0]**6*self.Q[1]
+        output[2] = self.P[1]*self.Q[2] + 2*self.P[2]*self.Q[0]*self.Q[2] + self.P[2]*self.Q[1]**2 + 3*self.P[3]*self.Q[0]**2*self.Q[2] + 3*self.P[3]*self.Q[0]*self.Q[1]**2 + 4*self.P[4]*self.Q[0]**3*self.Q[2] + 6*self.P[4]*self.Q[0]**2*self.Q[1]**2 + 5*self.P[5]*self.Q[0]**4*self.Q[2] + 10*self.P[5]*self.Q[0]**3*self.Q[1]**2 + 6*self.P[6]*self.Q[0]**5*self.Q[2] + 15*self.P[6]*self.Q[0]**4*self.Q[1]**2 + 7*self.P[7]*self.Q[0]**6*self.Q[2] + 21*self.P[7]*self.Q[0]**5*self.Q[1]**2
+        output[3] = 2*self.P[2]*self.Q[1]*self.Q[2] + 6*self.P[3]*self.Q[0]*self.Q[1]*self.Q[2] + self.P[3]*self.Q[1]**3 + 12*self.P[4]*self.Q[0]**2*self.Q[1]*self.Q[2] + 4*self.P[4]*self.Q[0]*self.Q[1]**3 + 20*self.P[5]*self.Q[0]**3*self.Q[1]*self.Q[2] + 10*self.P[5]*self.Q[0]**2*self.Q[1]**3 + 30*self.P[6]*self.Q[0]**4*self.Q[1]*self.Q[2] + 20*self.P[6]*self.Q[0]**3*self.Q[1]**3 + 42*self.P[7]*self.Q[0]**5*self.Q[1]*self.Q[2] + 35*self.P[7]*self.Q[0]**4*self.Q[1]**3
+        output[4] = self.P[2]*self.Q[2]**2 + 3*self.P[3]*self.Q[0]*self.Q[2]**2 + 3*self.P[3]*self.Q[1]**2*self.Q[2] + 6*self.P[4]*self.Q[0]**2*self.Q[2]**2 + 12*self.P[4]*self.Q[0]*self.Q[1]**2*self.Q[2] + self.P[4]*self.Q[1]**4 + 10*self.P[5]*self.Q[0]**3*self.Q[2]**2 + 30*self.P[5]*self.Q[0]**2*self.Q[1]**2*self.Q[2] + 5*self.P[5]*self.Q[0]*self.Q[1]**4 + 15*self.P[6]*self.Q[0]**4*self.Q[2]**2 + 60*self.P[6]*self.Q[0]**3*self.Q[1]**2*self.Q[2] + 15*self.P[6]*self.Q[0]**2*self.Q[1]**4 + 21*self.P[7]*self.Q[0]**5*self.Q[2]**2 + 105*self.P[7]*self.Q[0]**4*self.Q[1]**2*self.Q[2] + 35*self.P[7]*self.Q[0]**3*self.Q[1]**4
+        output[5] = 3*self.P[3]*self.Q[1]*self.Q[2]**2 + 12*self.P[4]*self.Q[0]*self.Q[1]*self.Q[2]**2 + 4*self.P[4]*self.Q[1]**3*self.Q[2] + 30*self.P[5]*self.Q[0]**2*self.Q[1]*self.Q[2]**2 + 20*self.P[5]*self.Q[0]*self.Q[1]**3*self.Q[2] + self.P[5]*self.Q[1]**5 + 60*self.P[6]*self.Q[0]**3*self.Q[1]*self.Q[2]**2 + 60*self.P[6]*self.Q[0]**2*self.Q[1]**3*self.Q[2] + 6*self.P[6]*self.Q[0]*self.Q[1]**5 + 105*self.P[7]*self.Q[0]**4*self.Q[1]*self.Q[2]**2 + 140*self.P[7]*self.Q[0]**3*self.Q[1]**3*self.Q[2] + 21*self.P[7]*self.Q[0]**2*self.Q[1]**5
+        output[6] = self.P[3]*self.Q[2]**3 + 4*self.P[4]*self.Q[0]*self.Q[2]**3 + 6*self.P[4]*self.Q[1]**2*self.Q[2]**2 + 10*self.P[5]*self.Q[0]**2*self.Q[2]**3 + 30*self.P[5]*self.Q[0]*self.Q[1]**2*self.Q[2]**2 + 5*self.P[5]*self.Q[1]**4*self.Q[2] + 20*self.P[6]*self.Q[0]**3*self.Q[2]**3 + 90*self.P[6]*self.Q[0]**2*self.Q[1]**2*self.Q[2]**2 + 30*self.P[6]*self.Q[0]*self.Q[1]**4*self.Q[2] + self.P[6]*self.Q[1]**6 + 35*self.P[7]*self.Q[0]**4*self.Q[2]**3 + 210*self.P[7]*self.Q[0]**3*self.Q[1]**2*self.Q[2]**2 + 105*self.P[7]*self.Q[0]**2*self.Q[1]**4*self.Q[2] + 7*self.P[7]*self.Q[0]*self.Q[1]**6
+        output[7] = 4*self.P[4]*self.Q[1]*self.Q[2]**3 + 20*self.P[5]*self.Q[0]*self.Q[1]*self.Q[2]**3 + 10*self.P[5]*self.Q[1]**3*self.Q[2]**2 + 60*self.P[6]*self.Q[0]**2*self.Q[1]*self.Q[2]**3 + 60*self.P[6]*self.Q[0]*self.Q[1]**3*self.Q[2]**2 + 6*self.P[6]*self.Q[1]**5*self.Q[2] + 140*self.P[7]*self.Q[0]**3*self.Q[1]*self.Q[2]**3 + 210*self.P[7]*self.Q[0]**2*self.Q[1]**3*self.Q[2]**2 + 42*self.P[7]*self.Q[0]*self.Q[1]**5*self.Q[2] + self.P[7]*self.Q[1]**7
+        output[8] = self.P[4]*self.Q[2]**4 + 5*self.P[5]*self.Q[0]*self.Q[2]**4 + 10*self.P[5]*self.Q[1]**2*self.Q[2]**3 + 15*self.P[6]*self.Q[0]**2*self.Q[2]**4 + 60*self.P[6]*self.Q[0]*self.Q[1]**2*self.Q[2]**3 + 15*self.P[6]*self.Q[1]**4*self.Q[2]**2 + 35*self.P[7]*self.Q[0]**3*self.Q[2]**4 + 210*self.P[7]*self.Q[0]**2*self.Q[1]**2*self.Q[2]**3 + 105*self.P[7]*self.Q[0]*self.Q[1]**4*self.Q[2]**2 + 7*self.P[7]*self.Q[1]**6*self.Q[2]
+        output[9] = 5*self.P[5]*self.Q[1]*self.Q[2]**4 + 30*self.P[6]*self.Q[0]*self.Q[1]*self.Q[2]**4 + 20*self.P[6]*self.Q[1]**3*self.Q[2]**3 + 105*self.P[7]*self.Q[0]**2*self.Q[1]*self.Q[2]**4 + 140*self.P[7]*self.Q[0]*self.Q[1]**3*self.Q[2]**3 + 21*self.P[7]*self.Q[1]**5*self.Q[2]**2
+        output[10] = self.P[5]*self.Q[2]**5 + 6*self.P[6]*self.Q[0]*self.Q[2]**5 + 15*self.P[6]*self.Q[1]**2*self.Q[2]**4 + 21*self.P[7]*self.Q[0]**2*self.Q[2]**5 + 105*self.P[7]*self.Q[0]*self.Q[1]**2*self.Q[2]**4 + 35*self.P[7]*self.Q[1]**4*self.Q[2]**3
+        output[11] = 6*self.P[6]*self.Q[1]*self.Q[2]**5 + 42*self.P[7]*self.Q[0]*self.Q[1]*self.Q[2]**5 + 35*self.P[7]*self.Q[1]**3*self.Q[2]**4
+        output[12] = self.P[6]*self.Q[2]**6 + 7*self.P[7]*self.Q[0]*self.Q[2]**6 + 21*self.P[7]*self.Q[1]**2*self.Q[2]**5
+        output[13] = 7*self.P[7]*self.Q[1]*self.Q[2]**6
+        output[14] = self.P[7]*self.Q[2]**7
+
+
+        return output
+
+    def q_l1_p_ln(self, pn, qn) -> torch.Tensor:
+        # Penalize weights' absolute value
+        reg = torch.sum(torch.abs(torch.pow(self.P, pn)))/len(self.P)
+        reg += torch.sum(torch.abs(torch.pow(self.Q, qn)))/len(self.Q)
+        return reg
+
+    def q_ln(self, qn) -> torch.Tensor:
+        # Penalize weights' absolute value
+        reg = torch.sum(torch.abs(torch.pow(self.Q, qn)))/len(self.Q)
+        return reg
+
+    def p_ln(self, pn) -> torch.Tensor:
+        # Penalize weights' absolute value
+        reg = torch.sum(torch.abs(torch.pow(self.P, pn)))/len(self.P)
+        return reg
+
+    def q_high_degree_regularization(self, n) -> torch.Tensor:
+        # Penalize high degree coefficients of Q
+        return torch.abs(torch.pow(self.Q[-1] - torch.round(self.Q[-1]), n))

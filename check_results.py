@@ -102,9 +102,11 @@ def analyze_for_hybrid_200():
     plt.title(f"Success of decomposition", fontsize=20)
     xs = np.array(sorted(list(successes.keys())))
     ys = np.array([successes[x] for x in xs])
-    plt.bar(xs[:n_samples//2], ys[:n_samples//2], color="royalblue", label=f"Decomposable case ({np.sum(ys[:n_samples//2])} / {n_samples//2})")
-    plt.bar(xs[n_samples//2: n_samples], ys[n_samples//2: n_samples], color="hotpink", label=f"Non-Decomposable case ({np.sum(ys[n_samples//2:n_samples])} / {n_samples//2})")
-    plt.xticks(xs[::n_samples//10] - 1, rotation=0)
+    plt.bar(xs[:n_samples // 2], ys[:n_samples // 2], color="royalblue",
+            label=f"Decomposable case ({np.sum(ys[:n_samples // 2])} / {n_samples // 2})")
+    plt.bar(xs[n_samples // 2: n_samples], ys[n_samples // 2: n_samples], color="hotpink",
+            label=f"Non-Decomposable case ({np.sum(ys[n_samples // 2:n_samples])} / {n_samples // 2})")
+    plt.xticks(xs[::n_samples // 10] - 1, rotation=0)
     plt.yticks([0, 1])
     plt.xlabel("Experiment", fontsize=15)
     plt.ylabel("Success", fontsize=15)
@@ -124,6 +126,8 @@ def analyze_for_300_vary():
 
     # Modify the working directory
     WORKING_DIR = join("output_dirs", "300_vary")
+
+    plt.subplots(1, 4, figsize=(18, 4.5))
 
     for i in range(len(combinations)):
         # Sum the successes
@@ -160,7 +164,10 @@ def analyze_for_300_vary():
                 total_successes += 1
                 scale_successes[scale] += 1
 
-        plt.figure(figsize=(8, 5))
+        if i == 4:
+            continue
+
+        plt.subplot(1, 4, i + 1)
         plt.title(
             f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}",
             fontsize=20)
@@ -175,11 +182,163 @@ def analyze_for_300_vary():
         plt.xticks(list(scale_successes1.keys()), rotation=45)
         plt.yticks(range(repetitions + 1))
         plt.xlabel("Scale", fontsize=15)
-        plt.ylabel("Number of successes", fontsize=15)
+        if i == 0:
+            plt.ylabel("Number of successes", fontsize=15)
         plt.legend()
-        plt.tight_layout()
-        plt.savefig(join("plots", f"successes_per_scale_300_vary_{combinations[i][1]}_{combinations[i][0]}.png"))
-        plt.close()
+
+    plt.suptitle("Successes per scale for 300_vary combinations", fontsize=30)
+    plt.tight_layout(pad=1.3)
+    plt.savefig(join("plots", "default_hp_results", f"successes_per_scale_300_vary.png"))
+    plt.show()
+
+
+def analyze_ablation():
+    plt.subplots(2, 3, figsize=(18, 10))
+    plt.suptitle("Ablation study results", fontsize=30)
+    # Sum the successes
+    successes1, successes2, successes3, successes4 = 0, 0, 0, 0
+    scale_successes1, scale_successes2, scale_successes3, scale_successes4 = {}, {}, {}, {}
+    repetitions = 5
+
+    # The working directory
+    WORKING_DIR = join("output_dirs", "100_5_3")
+
+    for thread in os.listdir(join(WORKING_DIR, "train_18")):
+        thread_dir1 = join(WORKING_DIR, "train_17_011", thread)
+        thread_dir2 = join(WORKING_DIR, "train_17_101", thread)
+        thread_dir3 = join(WORKING_DIR, "train_17_110", thread)
+        thread_dir4 = join(WORKING_DIR, "train_17", thread)
+        with open(join(thread_dir1, "polynomials.txt"), "r") as f:
+            loss1 = float(f.readlines()[6].split("Loss = ")[1].strip())
+        with open(join(thread_dir2, "polynomials.txt"), "r") as f:
+            loss2 = float(f.readlines()[6].split("Loss = ")[1].strip())
+        with open(join(thread_dir3, "polynomials.txt"), "r") as f:
+            loss3 = float(f.readlines()[6].split("Loss = ")[1].strip())
+        with open(join(thread_dir4, "polynomials.txt"), "r") as f:
+            loss4 = float(f.readlines()[6].split("Loss = ")[1].strip())
+
+        # Calculate the scale
+        scale = ((int(thread.split("_")[1]) - 1) // repetitions + 1) * 10
+        if scale not in scale_successes1:
+            scale_successes1[scale] = 0
+        if scale not in scale_successes2:
+            scale_successes2[scale] = 0
+        if scale not in scale_successes3:
+            scale_successes3[scale] = 0
+        if scale not in scale_successes4:
+            scale_successes4[scale] = 0
+
+        # Check if the model succeeded
+        if loss1 < 1e-5:
+            successes1 += 1
+            scale_successes1[scale] += 1
+        if loss2 < 1e-5:
+            successes2 += 1
+            scale_successes2[scale] += 1
+        if loss3 < 1e-5:
+            successes3 += 1
+            scale_successes3[scale] += 1
+        if loss4 < 1e-5:
+            successes4 += 1
+            scale_successes4[scale] += 1
+
+    plt.subplot(2, 3, 1)
+    plt.title(f"Ablation success per scale - 100", fontsize=20)
+    xs = np.array(list(scale_successes1.keys()))
+    ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
+                          list(scale_successes3.values()), list(scale_successes4.values()))
+    width, space = 1.5, 2
+    plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
+            label=f"Without rounding coefficients ({successes3})")
+    plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
+            label=f"Without guessing coefficients ({successes1})")
+    plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
+            label=f"Without using regularization ({successes2})")
+    plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+            label=f"Full model ({successes4})")
+    plt.xticks(list(scale_successes1.keys()), rotation=45)
+    plt.yticks(range(repetitions + 1))
+    # plt.xlabel("Scale", fontsize=15)
+    plt.ylabel("Amount of successes", fontsize=15)
+    plt.legend()
+
+    combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
+
+    # Modify the working directory
+    WORKING_DIR = join("output_dirs", "300_vary")
+
+    for i in range(len(combinations)):
+        # Sum the successes
+        successes1, successes2, successes3, successes4 = 0, 0, 0, 0
+        scale_successes1, scale_successes2, scale_successes3, scale_successes4 = {}, {}, {}, {}
+        repetitions = 3
+        for thread in os.listdir(join(WORKING_DIR, "train_18")):
+            if int(thread.split("_")[1]) > 60 * (i + 1) or int(thread.split("_")[1]) <= 60 * i:
+                continue
+            thread_dir1 = join(WORKING_DIR, "train_17_011", thread)
+            thread_dir2 = join(WORKING_DIR, "train_17_101", thread)
+            thread_dir3 = join(WORKING_DIR, "train_17_110", thread)
+            thread_dir4 = join(WORKING_DIR, "train_17", thread)
+            with open(join(thread_dir1, "polynomials.txt"), "r") as f:
+                loss1 = float(f.readlines()[6].split("Loss = ")[1].strip())
+            with open(join(thread_dir2, "polynomials.txt"), "r") as f:
+                loss2 = float(f.readlines()[6].split("Loss = ")[1].strip())
+            with open(join(thread_dir3, "polynomials.txt"), "r") as f:
+                loss3 = float(f.readlines()[6].split("Loss = ")[1].strip())
+            with open(join(thread_dir4, "polynomials.txt"), "r") as f:
+                loss4 = float(f.readlines()[6].split("Loss = ")[1].strip())
+
+            # Calculate the scale
+            scale = ((int(thread.split("_")[1]) - 60 * i - 1) // repetitions + 1) * 10
+            if scale not in scale_successes1:
+                scale_successes1[scale] = 0
+            if scale not in scale_successes2:
+                scale_successes2[scale] = 0
+            if scale not in scale_successes3:
+                scale_successes3[scale] = 0
+            if scale not in scale_successes4:
+                scale_successes4[scale] = 0
+
+            # Check if the model succeeded
+            if loss1 < 1e-5:
+                successes1 += 1
+                scale_successes1[scale] += 1
+            if loss2 < 1e-5:
+                successes2 += 1
+                scale_successes2[scale] += 1
+            if loss3 < 1e-5:
+                successes3 += 1
+                scale_successes3[scale] += 1
+            if loss4 < 1e-5:
+                successes4 += 1
+                scale_successes4[scale] += 1
+
+        plt.subplot(2, 3, i + 2)
+        plt.title(f"Ablation successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
+        xs = np.array(list(scale_successes1.keys()))
+        ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
+                              list(scale_successes3.values()), list(scale_successes4.values()))
+        width, space = 2, 2
+        plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
+                label=f"Without rounding coefficients ({successes3})")
+        plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
+                label=f"Without guessing coefficients ({successes1})")
+        plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
+                label=f"Without using regularization ({successes2})")
+        plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+                label=f"Full model ({successes4})")
+        plt.xticks(list(scale_successes1.keys()), rotation=45)
+        plt.yticks(range(repetitions + 1))
+        if i > 1:
+            plt.xlabel("Scale", fontsize=15)
+        if i == 2:
+            plt.ylabel("Amount of successes", fontsize=15)
+        plt.legend()
+
+    plt.tight_layout(pad=1.3)
+    plt.savefig(
+        join("plots", "ablation", f"ablation_study.png"))
+    plt.show()
 
 
 def analyze_for_100_5_3_ablation():
@@ -342,4 +501,4 @@ def analyze_for_300_vary_ablation():
 
 
 if __name__ == "__main__":
-    analyze_for_hybrid_200()
+    analyze_ablation()
