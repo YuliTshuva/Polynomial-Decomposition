@@ -500,5 +500,45 @@ def analyze_for_300_vary_ablation():
         plt.close()
 
 
+def find_mean_epoch():
+    """
+    Find the mean epoch for convergence.
+    """
+    WORKING_DIR = join("output_best_hp", "dataset_300_vary", "train_17")
+    epochs, success = [], []
+
+    for thread in os.listdir(WORKING_DIR):
+        thread_dir = join(WORKING_DIR, thread)
+        with open(join(thread_dir, "polynomials.txt"), "r") as f:
+            lines = f.readlines()
+            loss = float(lines[6].split("Loss = ")[1].strip())
+            epoch = int(lines[6].split("Epoch")[1].split(":")[0].strip())
+            if loss < 1e-5:
+                success.append(1)
+            else:
+                success.append(0)
+            epochs.append(epoch)
+
+    epochs = np.array(epochs)
+    success = np.array(success)
+    successful_epochs = epochs[success == 1]
+    failed_epochs = epochs[success == 0]
+
+    mean_epochs, mean_successful, mean_fail = np.mean(epochs), np.mean(successful_epochs), np.mean(failed_epochs)
+    print(f"Mean epochs: {mean_epochs}, Mean successful epochs: {mean_successful}, Mean failed epochs: {mean_fail}")
+
+    # Plot the histogram where successful and failed epochs are in different colors
+    plt.figure(figsize=(8, 5))
+    plt.title(f"Epochs until convergence (mean: {mean_epochs:.2f})", fontsize=20)
+    plt.hist(successful_epochs, bins=60, color="turquoise", label=f"Successful convergences (mean: {mean_successful:.2f})")
+    plt.hist(failed_epochs, bins=100, color="salmon", label=f"Failed convergences (mean: {mean_fail:.2f})")
+    plt.xlabel("Epochs until convergence", fontsize=15)
+    plt.ylabel("Number of experiments", fontsize=15)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(join("plots", "mean_epochs_until_convergence_300_vary.png"))
+    plt.show()
+
+
 if __name__ == "__main__":
-    analyze_ablation()
+    find_mean_epoch()

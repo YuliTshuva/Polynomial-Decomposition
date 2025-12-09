@@ -259,7 +259,13 @@ def classify_results(results):
     y = y.loc[balanced_indices].reset_index(drop=True)
 
     # Split the dataset into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=42)
+    # X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.2, random_state=42)
+
+    # Load existing sets
+    X_train = pd.read_csv(join(CLASSIFIER_DIR, f"X_train.csv"))
+    X_test = pd.read_csv(join(CLASSIFIER_DIR, f"X_test.csv"))
+    y_train = pd.read_csv(join(CLASSIFIER_DIR, f"y_train.csv"))
+    y_test = pd.read_csv(join(CLASSIFIER_DIR, f"y_test.csv"))
 
     # Optuna objective function
     def objective(trial):
@@ -295,69 +301,73 @@ def classify_results(results):
         sampler=optuna.samplers.TPESampler(seed=SEED)
     )
 
-    study.optimize(objective, n_trials=100, show_progress_bar=True)
+    # study.optimize(objective, n_trials=100, show_progress_bar=True)
 
-    # Train the best model on the full training set
-    best_model = RandomForestClassifier(
-        **study.best_params,
-        random_state=SEED,
-        n_jobs=N_JOBS
-    )
+    # # Train the best model on the full training set
+    # best_model = RandomForestClassifier(
+    #     **study.best_params,
+    #     random_state=SEED,
+    #     n_jobs=N_JOBS
+    # )
+
+    # best_model.fit(X_train, y_train)
+
+    # Evaluate on the held-out test set
+    # test_pred = best_model.predict(X_test)
+    # test_acc = accuracy_score(y_test, test_pred)
+    # test_auc = roc_auc_score(y_test, test_pred)
+    #
+    # print("\n\nRF Test Accuracy of best model:", test_acc)
+    # print("\n\nRF Test AUC of best model:", test_auc)
+
+    # # Save the datasets
+    # X_train.to_csv(join(CLASSIFIER_DIR, f"X_train.csv"), index=False)
+    # X_test.to_csv(join(CLASSIFIER_DIR, f"X_test.csv"), index=False)
+    # y_train.to_csv(join(CLASSIFIER_DIR, f"y_train.csv"), index=False)
+    # y_test.to_csv(join(CLASSIFIER_DIR, f"y_test.csv"), index=False)
+
+    # # Save the model as a pickle file
+    # model_path = join(CLASSIFIER_DIR, f"{dataset}_rf_model.pkl")
+    # with open(model_path, "wb") as f:
+    #     pickle.dump(best_model, f)
 
     # Create a simple MLP model using fastai
-    mlp_df = df.copy()
-    mlp_df["target"] = y
+    X_train["target"] = y_train
     dls = TabularDataLoaders.from_df(
-        mlp_df.loc[X_train.index],
+        X_train,
         procs=[Normalize],
-        cont_names=df.columns.tolist(),
+        cont_names=X_train.columns.drop("target").tolist(),
         cat_names=[],
         y_names='target',
-        bs=64
+        bs=8
     )
 
     learn = tabular_learner(
         dls,
-        layers=[200, 100, 50],  # MLP architecture
+        layers=[50, 100, 50],  # MLP architecture
         lr=1e-3,
         metrics=accuracy
     )
 
-    learn.fit_one_cycle(5)
-
-    best_model.fit(X_train, y_train)
-
-    # Evaluate on the held-out test set
-    test_pred = best_model.predict(X_test)
-    test_acc = accuracy_score(y_test, test_pred)
-    test_auc = roc_auc_score(y_test, test_pred)
-
-    print("\n\nRF Test Accuracy of best model:", test_acc)
-    print("\n\nRF Test AUC of best model:", test_auc)
+    learn.fit_one_cycle(100)
 
     # Predict using the MLP model
-    mlp_test_dl = dls.test_dl(mlp_df.loc[X_test.index])
+    mlp_test_dl = dls.test_dl(X_test)
     mlp_preds, _ = learn.get_preds(dl=mlp_test_dl)
-    mlp_test_pred = mlp_preds.argmax(dim=1)
+    mlp_test_pred = torch.round(mlp_preds).squeeze()
     mlp_test_acc = accuracy_score(y_test, mlp_test_pred)
-    mlp_test_auc = roc_auc_score(y_test, mlp_preds)
-    print("\n\nMLP Test Accuracy of best model:", mlp_test_acc)
-    print("\n\nMLP Test AUC of best model:", mlp_test_auc)
+    print("MLP Test Accuracy of best model:", mlp_test_acc)
 
-    # Save the model as a pickle file
-    model_path = join(CLASSIFIER_DIR, f"{dataset}_rf_model.pkl")
-    with open(model_path, "wb") as f:
-        pickle.dump(best_model, f)
+    # Evaluate over the train set
+    mlp_train_dl = dls.test_dl(X_train)
+    mlp_train_preds, _ = learn.get_preds(dl=mlp_train_dl)
+    mlp_train_pred = torch.round(mlp_train_preds).squeeze()
+    mlp_train_acc = accuracy_score(y_train, mlp_train_pred)
+    print("MLP Train Accuracy of best model:", mlp_train_acc)
 
     # Also save the MLP model
     mlp_model_path = join(CLASSIFIER_DIR, f"{dataset}_mlp_model.pkl")
     learn.export(mlp_model_path)
-
-    # Save the dataset
-    X_train.to_csv(join(CLASSIFIER_DIR, f"X_train.csv"), index=False)
-    X_test.to_csv(join(CLASSIFIER_DIR, f"X_test.csv"), index=False)
-    y_train.to_csv(join(CLASSIFIER_DIR, f"y_train.csv"), index=False)
-    y_test.to_csv(join(CLASSIFIER_DIR, f"y_test.csv"), index=False)
 
 
 def view_results():
@@ -368,32 +378,51 @@ def view_results():
     y_test = pd.read_csv(join(CLASSIFIER_DIR, f"y_test.csv"))
 
     # Load the model
-    model_path = join(CLASSIFIER_DIR, f"dataset_hybrid_1000_deg15_rf_model.pkl")
-    with open(model_path, "rb") as f:
-        model = pickle.load(f)
+    rf_model_path = join(CLASSIFIER_DIR, f"dataset_hybrid_1000_deg15_rf_model.pkl")
+    mlp_model_path = join(CLASSIFIER_DIR, f"dataset_hybrid_1000_deg15_mlp_model.pkl")
+    with open(rf_model_path, "rb") as f:
+        rf_model = pickle.load(f)
+
+    mlp_model = load_learner(mlp_model_path)
 
     # Evaluate on the held-out train and test set
-    train_pred = model.predict(X_train)
-    test_pred = model.predict(X_test)
+    train_pred = rf_model.predict(X_train)
+    test_pred = rf_model.predict(X_test)
 
-    df = pd.DataFrame({'Actual': y_test.values.flatten(), 'Predicted': test_pred})
-    df.to_csv(join(CLASSIFIER_DIR, f"test_predictions.csv"), index=False)
+    df = pd.DataFrame({'Actual': y_test.values.flatten(), 'RF Predicted': test_pred})
 
-    train_pred = model.predict(X_train)
     train_acc = accuracy_score(y_train, train_pred)
-    train_auc = roc_auc_score(y_train, train_pred)
     test_acc = accuracy_score(y_test, test_pred)
-    test_auc = roc_auc_score(y_test, test_pred)
 
     print("Train Accuracy of loaded model:", train_acc)
-    print("Train AUC of loaded model:", train_auc)
     print("Test Accuracy of loaded model:", test_acc)
-    print("Test AUC of loaded model:", test_auc)
+    print()
+
+    X_train["target"] = y_train
+    X_test["target"] = y_test
+    # Do the same for the MLP model
+    mlp_train_dl = mlp_model.dls.test_dl(X_train)
+    mlp_test_dl = mlp_model.dls.test_dl(X_test)
+    mlp_train_preds, _ = mlp_model.get_preds(dl=mlp_train_dl)
+    mlp_test_preds, _ = mlp_model.get_preds(dl=mlp_test_dl)
+    mlp_train_pred = torch.round(mlp_train_preds).squeeze()
+    mlp_test_pred = torch.round(mlp_test_preds).squeeze()
+    mlp_train_acc = accuracy_score(y_train, mlp_train_pred)
+    mlp_test_acc = accuracy_score(y_test, mlp_test_pred)
+
+    print("MLP Train Accuracy of loaded model:", mlp_train_acc)
+    print("MLP Test Accuracy of loaded model:", mlp_test_acc)
+
+    df["MLP Predicted"] = mlp_test_pred.numpy()
+    df.to_csv(join(CLASSIFIER_DIR, f"test_predictions.csv"), index=False)
 
 
 def main():
     # Get the model's results
     results1, results2 = get_all_results("output_best_hp"), get_all_results("output_default_hp")
+
+    # classify_results(results1)
+    # view_results()
 
     # Set the amount of runs
     runs = 6
