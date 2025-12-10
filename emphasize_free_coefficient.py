@@ -73,7 +73,7 @@ os.makedirs(working_dir, exist_ok=True)
 
 # Plot in one plot the solutions for c = 51 +/- 1, 2
 deviations = [0, 1, 2]
-fig, ax = plt.subplots(nrows=1, ncols=2*len(deviations) - 1, figsize=(20, 5))
+fig, ax = plt.subplots(nrows=2, ncols=2*len(deviations) - 1, figsize=(20, 5))
 for idx, deviation in enumerate(deviations):
     for sign in [-1, 1]:
         c_i = c + sign * deviation
@@ -87,13 +87,13 @@ for idx, deviation in enumerate(deviations):
         ax[center + sign * deviation].set_xticks(range(len(sol)))
         ax[center + sign * deviation].set_xticklabels([f"b{5 - i}" for i in range(len(sol))])
         ax[center + sign * deviation].set_yticks(ticks=np.abs(sol).astype(np.int64), labels=np.abs(sol).astype(np.int64))
-        ax[center + sign * deviation].set_xlabel("Coefficients", fontsize=15)
+        ax[center + sign * deviation].set_xlabel("Coefficients", fontsize=18)
         if center + sign * deviation == 0:
-            ax[center + sign * deviation].set_ylabel("Value", fontsize=15)
+            ax[center + sign * deviation].set_ylabel("Value", fontsize=18)
         sign_str = "+" if sign == 1 else "-"
-        ax[center + sign * deviation].set_title(f"c = 51 {sign_str} {deviation}", fontsize=20)
+        ax[center + sign * deviation].set_title(f"$c_0$ = 51 {sign_str} {deviation}", fontsize=24)
 
-plt.suptitle("g's coefficients for varying free coefficient", fontsize=25)
+plt.suptitle("g's coefficients for varying free coefficient", fontsize=35)
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 plt.savefig(join(working_dir, f"all_c_variations.png"))
-plt.close()
+plt.show()
