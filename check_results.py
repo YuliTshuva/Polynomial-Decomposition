@@ -626,14 +626,11 @@ def plot_loss_distribution_of_fails():
 
 def put_losses_in_figure():
     scale = 1.5
-    plt.subplots(2, 3, figsize=(10 * scale, 6 * scale))
-    paths = [f"output_best_hp/dataset_hybrid_1000_deg15/train_17/thread_{i}/loss.png" for i in [3, 22, 30, 524, 530, 540]]
-    # Load an image to each subplot
-    for i in range(6):
-        plt.subplot(2, 3, i + 1)
-        img = plt.imread(paths[i])
-        plt.imshow(img)
-        plt.axis('off')
+    plt.subplots(3, 3, figsize=(10 * scale, 9 * scale))
+    interesting_runs = [1, 2, 4, 3, 22, 30, 524, 530, 540]
+    paths = [f"output_best_hp/dataset_hybrid_1000_deg15/train_17/thread_{i}/loss.png" for i in interesting_runs]
+
+
 
     plt.suptitle("Loss curves for decomposable vs Non-decomposable experiments", fontsize=20 * scale, y=0.95)
     plt.tight_layout(pad=2.0)

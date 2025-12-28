@@ -11,9 +11,11 @@ from functions import *
 
 # Set train file
 train = "train_17"  # 18
-mode = "ablation"  # standard / ablation / hybrid
+mode = "standard"  # standard / ablation / hybrid
 
 if mode == "standard":
+    sample_for_plot = True
+
     # Constants
     ATTEMPTS = 6
     DATASETS = ["dataset_100_5_3.csv", "dataset_300_vary.csv", "dataset_hybrid_1000_deg15.csv"]
@@ -44,6 +46,10 @@ if mode == "standard":
     while True:
         # Iterate through the datasets
         for dataset in DATASETS:
+            if sample_for_plot:
+                if dataset != "dataset_hybrid_1000_deg15.csv":
+                    continue
+
             # Load the dataset
             df = pd.read_csv(join("data", dataset))
 
@@ -52,10 +58,16 @@ if mode == "standard":
 
             # Create the working directory if it doesn't exist
             WORKING_DIR = join("output_best_hp", dataset.split(".csv")[0], train)
+            if sample_for_plot:
+                WORKING_DIR = join("output_best_hp", dataset.split(".csv")[0] + "_sample_for_plot", train)
             os.makedirs(WORKING_DIR, exist_ok=True)
 
             # Iterate through the dataset
             for i in range(1, len(df) + 1):
+                if sample_for_plot:
+                    if i not in [1, 2, 4, 3, 22, 30, 524, 530, 540]:
+                        continue
+
                 success = False
                 run_num = 1
                 thread_dir = join(WORKING_DIR, f"thread_{i}")
@@ -68,6 +80,9 @@ if mode == "standard":
                         f.write("")
 
                 if folder_exists:
+                    if sample_for_plot:
+                        continue
+
                     # Update the run number
                     run_file = [file for file in os.listdir(thread_dir) if "run_" in file][0]
                     run_num = int(run_file.split("_")[1].split(".")[0]) + 1

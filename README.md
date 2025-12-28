@@ -24,15 +24,3 @@
 * ```train18.py``` Normalizes the coefficients of R such that the coefficient of the highest degree is 1.
 * ```train19.py``` Try again to decompose specific polynomials.
 
-<h3>Experiments</h3>
-
-In this section we start expiermenting with the algorithm and try to decompose polynomials that are composed of two polynomials.
-We first build a dataset using ```create_dataset.py``` with vary degrees and scales of coefficients.
-
-Then, we applied the valina generic algorithm on the dataset, as is, using ```pipeline.py```.
-
-Points to note:
-* There are modifications to the algorithms that need to be done in order to adjust for different scales and varying degrees.
-* We need to better understand the cases where the algorithm fails.
-
-Right now, I'm trying to figure out how can I make train18 more tolerant for cases which could converge.
