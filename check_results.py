@@ -580,9 +580,11 @@ def plot_loss_distribution_of_fails():
     fig, axs = plt.subplots(1, 3, figsize=(16, 5))
     plt.subplot(1, 3, 1)
     plt.title(f"Final loss", fontsize=20)
-    plt.hist(dec_losses, bins=60, color="turquoise", label=f"Decomposable polynomials")
-    plt.hist(non_dec_losses, bins=100, color="salmon", label=f"Non-decomposable polynomials")
+    plt.hist(dec_losses, bins=400, color="turquoise", label=f"Decomposable polynomials", alpha=0.7)
+    plt.hist(non_dec_losses, bins=100, color="salmon", label=f"Non-decomposable polynomials", alpha=0.7)
     plt.xlabel("Final Loss", fontsize=17)
+    plt.xscale("log")
+    plt.xlim(np.min(losses) * 0.9, np.max(losses) * 1.1)
     plt.ylabel("Number of experiments", fontsize=17)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -591,8 +593,8 @@ def plot_loss_distribution_of_fails():
 
     plt.subplot(1, 3, 2)
     plt.title(f"Epochs until convergence", fontsize=20)
-    plt.hist(non_dec_epochs, bins=100, color="salmon", label=f"Non-decomposable polynomials")
-    plt.hist(dec_epochs, bins=60, color="turquoise", label=f"Decomposable polynomials")
+    plt.hist(non_dec_epochs, bins=100, color="salmon", label=f"Non-decomposable polynomials", alpha=0.7)
+    plt.hist(dec_epochs, bins=60, color="turquoise", label=f"Decomposable polynomials", alpha=0.7)
     plt.xlabel("Epochs until convergence", fontsize=17)
     plt.ylabel("Number of experiments", fontsize=17)
     plt.xticks(fontsize=12)
@@ -602,15 +604,18 @@ def plot_loss_distribution_of_fails():
 
     plt.subplot(1, 3, 3)
     # Plot a 2d plot of final loss vs epochs until convergence, where decomposable and non-decomposable are in different colors
+    # Plot with log scale on y axis
     plt.title(f"Final loss vs Epochs until convergence", fontsize=20)
     plt.scatter(dec_epochs, dec_losses, color="turquoise", label=f"Decomposable polynomials", alpha=0.6)
     plt.scatter(non_dec_epochs, non_dec_losses, color="salmon", label=f"Non-decomposable polynomials", alpha=0.6)
+    plt.yscale("log")
+    plt.ylim(np.min(losses) * 0.9, np.max(losses) * 1.1)
     plt.xlabel("Epochs until convergence", fontsize=17)
     plt.ylabel("Final Loss", fontsize=17)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     # Increase font size
-    plt.legend(fontsize=14)
+    plt.legend(fontsize=14, loc="lower right")
 
     plt.suptitle("Distributions of Decomposable vs Non-Decomposable Polynomials", fontsize=26)
 
@@ -637,4 +642,4 @@ def put_losses_in_figure():
 
 
 if __name__ == "__main__":
-    plot_loss_distribution_of_fails()
+    put_losses_in_figure()
