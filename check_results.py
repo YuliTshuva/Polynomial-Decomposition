@@ -9,6 +9,7 @@ from os.path import join
 import os
 from matplotlib import rcParams
 import numpy as np
+import pickle
 
 # Constants
 rcParams['font.family'] = 'Times New Roman'
@@ -625,14 +626,32 @@ def plot_loss_distribution_of_fails():
 
 
 def put_losses_in_figure():
-    scale = 1.5
-    plt.subplots(3, 3, figsize=(10 * scale, 9 * scale))
+    plt.subplots(3, 3, figsize=(20, 20))
     interesting_runs = [1, 2, 4, 3, 22, 30, 524, 530, 540]
-    paths = [f"output_best_hp/dataset_hybrid_1000_deg15/train_17/thread_{i}/loss.png" for i in interesting_runs]
+    loss_list = []
+    all_losses = []
+    for i, run in enumerate(interesting_runs, start=1):
+        loss_path = f"output_best_hp/dataset_hybrid_1000_deg15_sample_for_plot/train_17/thread_{i}/losses.pkl"
+        with open(loss_path, "rb") as f:
+            losses = pickle.load(f)
+        loss_list.append(losses)
+        all_losses += losses
 
+    total_min, total_max = np.min(all_losses), np.max(all_losses)
 
+    for i in range(1, 10):
+        losses = loss_list[i - 1]
+        plt.subplot(3, 3, i)
+        plt.plot(range(1, len(losses) + 1), losses, color="red")
+        plt.title(f"Run {run}", fontsize=20)
+        if i > 6:
+            plt.xlabel("Epochs", fontsize=15)
+        if i % 3 == 1:
+            plt.ylabel("Loss", fontsize=15)
+        plt.yscale("log")
+        plt.ylim(total_min * 0.9, total_max * 1.1)
 
-    plt.suptitle("Loss curves for decomposable vs Non-decomposable experiments", fontsize=20 * scale, y=0.95)
+    plt.suptitle("Loss curves for decomposable vs Non-decomposable experiments", fontsize=30, y=0.95)
     plt.tight_layout(pad=2.0)
     plt.savefig(join("plots", "rq1_plots", "loss_curves_examples.png"))
     plt.show()
