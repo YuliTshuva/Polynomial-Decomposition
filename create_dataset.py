@@ -148,17 +148,17 @@ def compare_coefficients():
         plt.subplot(4, 4, deg + 1)
         plt.hist(coeffs1, bins=50, alpha=0.5, label='Decomposable', color='turquoise', density=True)
         plt.hist(coeffs2, bins=50, alpha=0.5, label='Non-Decomposable', color='red', density=True)
-        plt.title(f'Coefficient Distribution for x^{deg}', fontsize=20)
-        plt.xlabel('Coefficient Value', fontsize=15)
-        plt.ylabel('Density', fontsize=15)
+        plt.title(f'Coefficient Distribution for x^{deg}', fontsize=24)
+        plt.xlabel('Coefficient Value', fontsize=18)
+        plt.ylabel('Density', fontsize=18)
         plt.legend()
 
     # Adjust layout and show plot
-    plt.suptitle("Coefficient Distributions for Decomposable vs Non-Decomposable Polynomials", fontsize=28, y=0.99)
+    plt.suptitle("Coefficient Distributions for Decomposable vs Non-Decomposable Polynomials", fontsize=35, y=0.99)
     plt.tight_layout(pad=1.2)
     plt.savefig(join("plots", 'hybrid_new_coefficient_distributions.png'))
     plt.show()
 
 
 if __name__ == "__main__":
-    pass
+    compare_coefficients()
