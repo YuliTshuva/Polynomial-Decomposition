@@ -51,7 +51,8 @@ NUM_THREADS = 1
 SHOW_EVERY = 50
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if len(sys.argv) <= 7:
-    WORKING_DIR = join("output_dirs", f"train_17_{'1' if USE_PARTS['guess coefficients'] else '0'}{'1' if USE_PARTS['use regularization'] else '0'}{'1' if USE_PARTS['round coefficients'] else '0'}")
+    WORKING_DIR = join("output_dirs",
+                       f"train_17_{'1' if USE_PARTS['guess coefficients'] else '0'}{'1' if USE_PARTS['use regularization'] else '0'}{'1' if USE_PARTS['round coefficients'] else '0'}")
 else:
     WORKING_DIR = sys.argv[14]
 THREAD_DIR = lambda i: join(WORKING_DIR, f"thread_{i}")
@@ -70,6 +71,11 @@ def sign(x):
         return 0
 
 
+def save_loss_as_pickle(losses, path):
+    with open(path, "wb") as f:
+        pickle.dump(losses, f)
+
+
 # Define variable
 x = sp.symbols('x')
 
@@ -85,7 +91,6 @@ if "x" in sys.argv[1]:
 else:
     P, Q = "Unknown", "Unknown"
     DEG_P, DEG_Q = int(sys.argv[1]), int(sys.argv[2])
-
 
 DEGREE = DEG_P * DEG_Q
 WEIGHTS = torch.tensor([1] * DEGREE + [LAMBDA3]).to(DEVICE)
@@ -124,7 +129,7 @@ def train(train_id: int):
     class_name = f"EfficientPolynomialSearch_{DEGREE}_{DEG_Q}"
 
     # Check if such a model exists
-    with open(module_name+".py", "r") as file:
+    with open(module_name + ".py", "r") as file:
         models_available = file.read()
 
     # Check if the model already been created
@@ -223,6 +228,7 @@ def train(train_id: int):
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
                 return
             else:
                 lr = lr / 10
@@ -253,11 +259,13 @@ def train(train_id: int):
                     f.write(f"p(x) = {ps_result}.\n")
                     f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
                 plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
                 return True
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
             print(f"[{get_time()}][Thread {train_id}]: Stopping thread.")
             os.remove(STOP_THREAD_FILE(train_id))
+            save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
             return
 
 
