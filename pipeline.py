@@ -8,10 +8,12 @@ from os.path import join
 import pandas as pd
 import subprocess
 from functions import *
+from tqdm.auto import tqdm
+import sys
 
 # Set train file
 train = "train_17"  # 18
-mode = "standard"  # standard / ablation / hybrid
+mode = "evolving_degree"  # standard / ablation / hybrid / evolving_degree
 
 if mode == "standard":
     sample_for_plot = True
@@ -205,3 +207,38 @@ if mode == "hybrid":
                 args += [df.loc[i - 1, "R(x)"]]
 
             subprocess.run(args=args)
+
+if mode == "evolving_degree":
+    # Load the dataset
+    dataset = "evolving_input_degree.csv"
+    df = pd.read_csv(join("data", dataset))
+
+    train = "train_17"
+
+    hp_combination = {
+        "LR": 10,
+        "MIN_LR": 1e-3,
+        "EARLY_STOPPING": int(3e2),
+        "LAMBDA1": 1,
+        "LAMBDA2": 1,
+        "LAMBDA3": 1e3,
+        "FORCE_COEFFICIENTS": 4000
+    }
+
+    print(sys.executable)
+
+    # Iterate through the dataset
+    for i in tqdm(range(1, len(df) + 1), total=len(df)):
+        p = df.loc[i - 1, "P(x)"]
+        q = df.loc[i - 1, "Q(x)"]
+        args = [sys.executable, f"{train}.py", p, q, str(i), "1", "1", "1"]
+        args += [str(hp_combination["LR"]), str(hp_combination["MIN_LR"]),
+                 str(hp_combination["EARLY_STOPPING"]),
+                 str(hp_combination["LAMBDA1"]),
+                 str(hp_combination["LAMBDA2"]),
+                 str(hp_combination["LAMBDA3"]),
+                 str(hp_combination["FORCE_COEFFICIENTS"])]
+        args += [join("output_dirs", "evolving_input_degree")]
+        args += ["None"]
+
+        subprocess.run(args=args)

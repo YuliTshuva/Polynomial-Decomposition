@@ -198,12 +198,15 @@ def analyze_for_300_vary():
     plt.show()
 
 
-def analyze_both_100_and_300():
+def analyze_both_100_and_300(style="line"):
     """
     combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
     scales = range(10, 201, 10)
     repetitions = 3
     """
+    if style != "line" and style != "bin":
+        raise ValueError("Style must be either 'line' or 'bin'.")
+
     # Sum the successes
     successes1, successes2, total_successes = 0, 0, 0
     scale_successes1, scale_successes2, scale_successes = {}, {}, {}
@@ -293,8 +296,12 @@ def analyze_both_100_and_300():
     ax1.set_title(f"Success rate over Dataset 100_5_3", fontsize=20)
     xs = np.array(sorted(list(success_100.keys())))
     ys = np.array([success_100[x] for x in xs])
-    ax1.bar(xs, ys, color="royalblue", edgecolor="black", width=2 * width,
-            label=f"$(deg\_h, deg\_g) = (3, 5)$ ({successes_100} / 100)")
+    if style == "bin":
+        ax1.bar(xs, ys, color="royalblue", edgecolor="black", width=2 * width,
+                label=f"$(deg\_h, deg\_g) = (3, 5)$ ({successes_100} / 100)")
+    if style == "line":
+        ax1.plot(xs, ys, color="royalblue",
+                 label=f"$(deg\_h, deg\_g) = (3, 5)$ ({successes_100} / 100)")
     ax1.set_xticks(list(success_100.keys()))
     ax1.set_xticklabels(list(success_100.keys()), rotation=45)
     ax1.set_yticks(range(5 + 1))
@@ -309,7 +316,10 @@ def analyze_both_100_and_300():
     for i, dct in enumerate(success_dicts):
         xs = np.array(sorted(list(dct.keys())))
         ys = np.array([dct[x] for x in xs])
-        ax2.bar(1.5 * xs + (i - 2) * space, ys, width=width, color=colors[i], label=labels[i], edgecolor="black")
+        if style == "bin":
+            ax2.bar(1.5 * xs + (i - 2) * space, ys, width=width, color=colors[i], label=labels[i], edgecolor="black")
+        if style == "line":
+            ax2.plot(1.5 * xs, ys, color=colors[i], label=labels[i])
 
     ax2.set_xticks(1.5 * xs)
     ax2.set_xticklabels(sorted(list(success_100.keys())), rotation=45)
@@ -320,11 +330,11 @@ def analyze_both_100_and_300():
     plt.suptitle("Successes rate per scale over Datasets 100_5_3 and 300_vary", fontsize=25)
 
     plt.tight_layout()
-    plt.savefig(join("plots", "default_hp_results", f"successes_per_scale_100_and_300.png"))
+    plt.savefig(join("plots", "default_hp_results", f"{style}_successes_per_scale_100_and_300.png"))
     plt.show()
 
 
-def analyze_ablation():
+def analyze_ablation(style="bin"):
     plt.subplots(2, 3, figsize=(20, 10))
     plt.suptitle("Ablation study", fontsize=40, y=0.99)
     # Sum the successes
@@ -379,20 +389,36 @@ def analyze_ablation():
     xs = np.array(list(scale_successes1.keys()))
     ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                           list(scale_successes3.values()), list(scale_successes4.values()))
+
+    # Sort xs and ys according to xs
+    sorted_indices = np.argsort(xs)
+    xs = xs[sorted_indices]
+    ys1 = np.array(ys1)[sorted_indices]
+    ys2 = np.array(ys2)[sorted_indices]
+    ys3 = np.array(ys3)[sorted_indices]
+    ys4 = np.array(ys4)[sorted_indices]
+
     width, space = 1.5, 2
-    plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
-            label=f"Without rounding coefficients ({successes3})")
-    plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-            label=f"Without guessing coefficients ({successes1})")
-    plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-            label=f"Without using regularization ({successes2})")
-    plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
-            label=f"Full model ({successes4})")
+    if style == "bin":
+        plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
+                label=f"Without rounding coefficients ({successes3})")
+        plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
+                label=f"Without guessing coefficients ({successes1})")
+        plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
+                label=f"Without using regularization ({successes2})")
+        plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+                label=f"Full model ({successes4})")
+    if style == "line":
+        plt.plot(xs, ys3, color="red", label=f"Without rounding coefficients ({successes3})")
+        plt.plot(xs, ys1, color="turquoise", label=f"Without guessing coefficients ({successes1})")
+        plt.plot(xs, ys2, color="royalblue", label=f"Without using regularization ({successes2})")
+        plt.plot(xs, ys4, color="hotpink", label=f"Full model ({successes4})")
+
     plt.xticks(list(scale_successes1.keys()), rotation=45, fontsize=15)
     plt.yticks(range(repetitions + 1), fontsize=15)
     # plt.xlabel("Scale", fontsize=15)
     plt.ylabel("Amount of successes", fontsize=20)
-    plt.legend()
+    plt.legend(loc="lower right")
 
     combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
 
@@ -450,25 +476,41 @@ def analyze_ablation():
         xs = np.array(list(scale_successes1.keys()))
         ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                               list(scale_successes3.values()), list(scale_successes4.values()))
+
+        # Sort xs and ys according to xs
+        sorted_indices = np.argsort(xs)
+        xs = xs[sorted_indices]
+        ys1 = np.array(ys1)[sorted_indices]
+        ys2 = np.array(ys2)[sorted_indices]
+        ys3 = np.array(ys3)[sorted_indices]
+        ys4 = np.array(ys4)[sorted_indices]
+
         width, space = 2, 2
-        plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
-                label=f"Without rounding coefficients ({successes3})")
-        plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-                label=f"Without guessing coefficients ({successes1})")
-        plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-                label=f"Without using regularization ({successes2})")
-        plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
-                label=f"Full model ({successes4})")
+        if style == "bin":
+            plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
+                    label=f"Without rounding coefficients ({successes3})")
+            plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
+                    label=f"Without guessing coefficients ({successes1})")
+            plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
+                    label=f"Without using regularization ({successes2})")
+            plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
+                    label=f"Full model ({successes4})")
+        if style == "line":
+            plt.plot(xs, ys3, color="red", label=f"Without rounding coefficients ({successes3})")
+            plt.plot(xs, ys1, color="turquoise", label=f"Without guessing coefficients ({successes1})")
+            plt.plot(xs, ys2, color="royalblue", label=f"Without using regularization ({successes2})")
+            plt.plot(xs, ys4, color="hotpink", label=f"Full model ({successes4})")
+
         plt.xticks(list(scale_successes1.keys()), rotation=45, fontsize=15)
         plt.yticks(range(repetitions + 1), fontsize=15)
-        if i > 2:
+        if i > 1:
             plt.xlabel("Scale", fontsize=20)
-        if i in [1, 3]:
+        if i in [2]:
             plt.ylabel("Amount of successes", fontsize=20)
-        plt.legend()
+        plt.legend(loc="lower right")
 
     plt.tight_layout(pad=1.3)
-    plt.savefig(join("plots", "ablation", f"ablation_study.png"))
+    plt.savefig(join("plots", "ablation", f"{style}_ablation_study.pdf"))
     plt.show()
 
 
@@ -858,4 +900,4 @@ def classify_decomposable():
 
 
 if __name__ == "__main__":
-    analyze_both_100_and_300()
+    analyze_ablation(style="bin")

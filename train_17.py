@@ -5,7 +5,6 @@ Trying to improve my algorithm for large coefficients by rounding Q's coeffs eve
 
 # Imports
 import sys
-import torch
 import torch.optim as optim
 from model import PolynomialSearch
 from functions import *
@@ -14,7 +13,6 @@ import os
 import shutil
 import sympy as sp
 import pickle
-from find_closest_solution import find_closest_solution
 import importlib
 import efficient_model
 import time

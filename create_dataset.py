@@ -99,6 +99,45 @@ def hybrid_dataset():
     # Save the df to a csv file
     df.to_csv(join("data", "dataset_hybrid_1000_deg15.csv"), index=False)
 
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+
+
+def growing_degree_dataset():
+    # Set the df
+    df = pd.DataFrame(columns=["R(x)", "P(x)", "Q(x)"])
+
+    # Set parameters
+    scale = 5
+    n_per_scale = 10
+    max_degree = 10
+
+    from tqdm.auto import tqdm
+
+    for degree in range(2, max_degree+1):
+        for _ in tqdm(range(n_per_scale)):
+            # Suggested degrees for p and q
+            deg_q, deg_p = degree, degree
+
+            # Decomposable case
+            q = sum([random_int(scale, allow_zero=(i != deg_q)) * x ** i for i in range(deg_q + 1)])
+            p = sum([random_int(scale, allow_zero=(i != deg_p)) * x ** i for i in range(deg_p + 1)])
+            # Multiply them
+            r = p.subs(x, q).expand().simplify()
+            # Get r's coefficients as a list
+            r_coeffs = [int(coef) for coef in r.as_poly(x).all_coeffs()]
+            # Add a row to the df
+            df.loc[df.shape[0]] = [r, p, q]
+
+    # Save the df to a csv file
+    df.to_csv(join("data", "evolving_input_degree.csv"), index=False)
+
+
 
 def check_non_decomposable():
     """
@@ -161,4 +200,4 @@ def compare_coefficients():
 
 
 if __name__ == "__main__":
-    compare_coefficients()
+    growing_degree_dataset()
