@@ -213,7 +213,7 @@ if mode == "evolving_degree":
     dataset = "evolving_input_degree.csv"
     df = pd.read_csv(join("data", dataset))
 
-    train = "train_17"
+    train = "train_19"
 
     hp_combination = {
         "LR": 10,
@@ -228,7 +228,11 @@ if mode == "evolving_degree":
     print(sys.executable)
 
     # Iterate through the dataset
-    for i in tqdm(range(1, len(df) + 1), total=len(df)):
+    for i in range(1, len(df) + 1):
+        if os.path.exists(join("output_dirs", "evolving_input_degree", f"thread_{i}")):
+            print(f"[{train}] Thread {i} already exists, skipping...")
+            continue
+
         p = df.loc[i - 1, "P(x)"]
         q = df.loc[i - 1, "Q(x)"]
         args = [sys.executable, f"{train}.py", p, q, str(i), "1", "1", "1"]

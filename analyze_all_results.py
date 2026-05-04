@@ -14,15 +14,15 @@ import matplotlib.pyplot as plt
 import sympy as sp
 from tqdm.auto import tqdm
 from sklearn.metrics import accuracy_score, roc_auc_score
-import optuna
+# import optuna
 import pickle
 import numpy as np
 from matplotlib import rcParams
-from fastai.tabular.all import *
+# from fastai.tabular.all import *
 
 # Constants
 OUTPUT_DIR = "output_best_hp"
-DATASETS = [file for file in os.listdir(OUTPUT_DIR) if os.path.isdir(join(OUTPUT_DIR, file))]
+DATASETS = ["dataset_100_5_3", "dataset_300_vary"]
 TRAIN = "train_17"
 PLOTS_DIR = join("plots", "full_pipeline_best_hp")
 CLASSIFIER_DIR = join("classifier")
@@ -31,6 +31,11 @@ N_JOBS = 10
 SEED = 42
 K_FOLDS = 4
 rcParams["font.family"] = "Times New Roman"
+LABEL_SIZE = 35
+TITLE_SIZE = 38
+SUPTITLE_SIZE = 41
+LINESTYLES = ["solid", "dashed", "dotted", "dashdot", (0, (3, 1, 1, 1))]
+
 
 
 def get_all_results(output_dir):
@@ -44,6 +49,9 @@ def get_all_results(output_dir):
 
         # Define dataset path
         dataset_path = join(output_dir, dataset, TRAIN)
+
+        if not os.path.exists(dataset_path):
+            dataset_path = dataset_path.replace("dataset_", "")
 
         # Iterate through the threads
         for thread in os.listdir(dataset_path):
@@ -59,8 +67,11 @@ def get_all_results(output_dir):
                 success = 1 if loss < 1 else 0
 
             # Check run success
-            run_success = int(
-                [file.split("_")[1].split(".")[0] for file in os.listdir(thread_path) if "run" in file][0])
+            try:
+                run_success = int(
+                    [file.split("_")[1].split(".")[0] for file in os.listdir(thread_path) if "run" in file][0])
+            except:
+                run_success = 6
 
             # Register result
             results[dataset][thread_num] = {
@@ -71,26 +82,23 @@ def get_all_results(output_dir):
     return results
 
 
-def plot_results(results1, results2, run):
-    # Create a directory for the run plots
-    # run_plots_dir = join(PLOTS_DIR, f"run_{run}")
+def plot_results(results1, results2, results3, run, style="bin"):
     run_plots_dir = PLOTS_DIR
     os.makedirs(run_plots_dir, exist_ok=True)
 
-    # Create a fig and axes for the plots
     fig, ax = plt.subplots(2, 3, figsize=(20, 12))
 
-    # Sum the successes
     dataset = "dataset_100_5_3"
     repetitions = 5
 
-    dct1, dct2 = results1[dataset], results2[dataset]
-    successes1, successes2 = {}, {}
+    dct1, dct2, dct3 = results1[dataset], results2[dataset], results3[dataset]
+    successes1, successes2, successes3 = {}, {}, {}
     for thread in dct1:
         successes1[thread] = dct1[thread]["success"] if dct1[thread]["run_success"] <= run else 0
         successes2[thread] = dct2[thread]["success"] if dct2[thread]["run_success"] <= run else 0
+        successes3[thread] = dct3[thread]["success"] if dct3[thread]["run_success"] <= run else 0
 
-    scale_successes1, scale_successes2 = {}, {}
+    scale_successes1, scale_successes2, scale_successes3 = {}, {}, {}
     for thread in successes1:
         scale = ((thread - 1) // repetitions + 1) * 10
         if scale not in scale_successes1:
@@ -101,112 +109,111 @@ def plot_results(results1, results2, run):
             scale_successes2[scale] = successes2[thread]
         else:
             scale_successes2[scale] += successes2[thread]
+        if scale not in scale_successes3:
+            scale_successes3[scale] = successes3[thread]
+        else:
+            scale_successes3[scale] += successes3[thread]
 
-    # Total successes
-    successes1, successes2 = sum(successes1.values()), sum(successes2.values())
+    successes1, successes2, successes3 = sum(successes1.values()), sum(successes2.values()), sum(successes3.values())
 
-    ax[1, 2].set_title(f"Successes per scale - 100", fontsize=20)
-    xs, ys1, ys2 = np.array(list(scale_successes1.keys())), list(scale_successes1.values()), list(
-        scale_successes2.values())
-    width, space = 2, 2
-    ax[1, 2].bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black",
-                 label=f"Best hp ({successes1})")
-    ax[1, 2].bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black",
-                 label=f"Default hp ({successes2})")
-    ax[1, 2].set_xticks(xs, labels=xs, rotation=45)
-    ax[1, 2].set_yticks(range(repetitions + 1))
-    ax[1, 2].set_xlabel("Scale", fontsize=15)
-    ax[1, 2].set_ylabel("Successes", fontsize=15)
-    ax[1, 2].legend()
+    ax[0, 0].set_title(f"Successes per scale - 100", fontsize=TITLE_SIZE)
+    xs = np.array(list(scale_successes1.keys()))
+    ys1, ys2, ys3 = list(scale_successes1.values()), list(scale_successes2.values()), list(scale_successes3.values())
 
-    # Update the dataset
+    sorted_indices = np.argsort(xs)
+    xs = xs[sorted_indices]
+    ys1 = np.array(ys1)[sorted_indices]
+    ys2 = np.array(ys2)[sorted_indices]
+    ys3 = np.array(ys3)[sorted_indices]
+
+    width = 2
+    if style == "bin":
+        ax[0, 0].bar(xs - width, ys1, color="royalblue", width=width, edgecolor="black", label="Best hp")
+        ax[0, 0].bar(xs,        ys2, color="hotpink",   width=width, edgecolor="black", label="Baseline")
+        ax[0, 0].bar(xs + width, ys3, color="turquoise", width=width, edgecolor="black", label="Results3")
+    if style == "line":
+        ax[0, 0].plot(xs, ys1, color="royalblue", label="Best hp", linestyle=LINESTYLES[0])
+        ax[0, 0].plot(xs, ys3, color="turquoise", label="Base method", linestyle=LINESTYLES[1])
+        ax[0, 0].plot(xs, ys2, color="hotpink",   label="Baseline", linestyle=LINESTYLES[2])
+    ax[0, 0].set_xticks(xs, labels=xs, rotation=45)
+    ax[0, 0].set_yticks(range(repetitions + 1))
+    ax[0, 0].set_xlabel("Coefficients Scale", fontsize=LABEL_SIZE)
+    ax[0, 0].set_ylabel("Success Rate", fontsize=LABEL_SIZE)
+    # No legend here
+
     dataset = "dataset_300_vary"
-    # Set the combinations
     combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
 
     for i in range(len(combinations)):
-        # Sum the successes
-        successes1, successes2, scale_successes1, scale_successes2 = 0, 0, {}, {}
+        successes1, successes2, successes3 = 0, 0, 0
+        scale_successes1, scale_successes2, scale_successes3 = {}, {}, {}
         repetitions = 3
-        dct1, dct2 = results1[dataset], results2[dataset]
+        dct1, dct2, dct3 = results1[dataset], results2[dataset], results3[dataset]
         for thread in dct1:
             if thread > 60 * (i + 1) or thread <= 60 * i:
                 continue
-            # Calculate the scale
             scale = ((thread - 60 * i - 1) // repetitions + 1) * 10
             if scale not in scale_successes1:
                 scale_successes1[scale] = 0
             if scale not in scale_successes2:
                 scale_successes2[scale] = 0
+            if scale not in scale_successes3:
+                scale_successes3[scale] = 0
 
-            # Check if the model succeeded
             if dct1[thread]["success"] and dct1[thread]["run_success"] <= run:
                 successes1 += 1
                 scale_successes1[scale] += 1
             if dct2[thread]["success"] and dct2[thread]["run_success"] <= run:
                 successes2 += 1
                 scale_successes2[scale] += 1
+            if dct3[thread]["success"] and dct3[thread]["run_success"] <= run:
+                successes3 += 1
+                scale_successes3[scale] += 1
 
-        ax[0 if i < 3 else 1, i % 3].set_title(
-            f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=20)
-        xs, ys1, ys2 = np.array(list(scale_successes1.keys())), list(scale_successes1.values()), list(
-            scale_successes2.values())
-        width, space = 2, 2
-        ax[0 if i < 3 else 1, i % 3].bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black",
-                                         label=f"Best hp ({successes1})")
-        ax[0 if i < 3 else 1, i % 3].bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black",
-                                         label=f"Default hp ({successes2})")
-        ax[0 if i < 3 else 1, i % 3].set_xticks(xs, labels=xs, rotation=45)
-        ax[0 if i < 3 else 1, i % 3].set_yticks(range(repetitions + 1))
-        ax[0 if i < 3 else 1, i % 3].set_xlabel("Scale", fontsize=15)
-        ax[0 if i < 3 else 1, i % 3].set_ylabel("Successes", fontsize=15)
-        ax[0 if i < 3 else 1, i % 3].legend()
+        row, col = (0 if i < 2 else 1), (i + 1) % 3
+        ax[row, col].set_title(
+            f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=TITLE_SIZE)
+        xs = np.array(list(scale_successes1.keys()))
+        ys1, ys2, ys3 = list(scale_successes1.values()), list(scale_successes2.values()), list(scale_successes3.values())
 
-    # Save the figure
-    fig.suptitle(f"Iteration {run}", fontsize=30)
+        sorted_indices = np.argsort(xs)
+        xs = xs[sorted_indices]
+        ys1 = np.array(ys1)[sorted_indices]
+        ys2 = np.array(ys2)[sorted_indices]
+        ys3 = np.array(ys3)[sorted_indices]
+
+        if style == "bin":
+            ax[row, col].bar(xs - width, ys1, color="royalblue", width=width, edgecolor="black", label="Best hp")
+            ax[row, col].bar(xs,         ys2, color="hotpink",   width=width, edgecolor="black", label="Baseline")
+            ax[row, col].bar(xs + width,  ys3, color="turquoise", width=width, edgecolor="black", label="Results3")
+        if style == "line":
+            ax[row, col].plot(xs, ys1, color="royalblue", label="Best hp", linestyle=LINESTYLES[0])
+            ax[row, col].plot(xs, ys3, color="turquoise", label="Base method", linestyle=LINESTYLES[1])
+            ax[row, col].plot(xs, ys2, color="hotpink",   label="Baseline", linestyle=LINESTYLES[2])
+        ax[row, col].set_xticks(xs, labels=xs, rotation=45)
+        ax[row, col].set_yticks(range(repetitions + 1))
+        if i > 2:
+            ax[row, col].set_xlabel("Coefficients Scale", fontsize=LABEL_SIZE)
+        if i in [0, 3]:
+            ax[row, col].set_ylabel("Success Rate", fontsize=LABEL_SIZE)
+        # No legend here
+
+    # Single shared legend at the bottom
+    handles, labels = ax[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=20,
+               bbox_to_anchor=(0.5, -0.01), frameon=True)
+
+    if run != 6:
+        fig.suptitle(f"Iteration {run}", fontsize=30)
+    if run == 6:
+        fig.suptitle(f"Ensemble Pipeline", fontsize=SUPTITLE_SIZE)
     fig.tight_layout()
-    fig.savefig(join(run_plots_dir, f"results_run_{run}.png"))
+    fig.subplots_adjust(bottom=0.12)  # Make room for the legend
+    fig.savefig(join(run_plots_dir, f"{style}_results_run_{run}.pdf"), bbox_inches="tight")
     plt.show()
 
-    # Count the success amount for hybrid dataset
-    dataset = "dataset_hybrid_1000_deg15"
-    dct1, dct2 = results1[dataset], results2[dataset]
-    runs = 5
-    run_to_successes1 = {run: 0 for run in range(1, runs + 1)}
-    run_to_successes2 = {run: 0 for run in range(1, runs + 1)}
-    for run in range(1, runs + 1):
-        successes1, successes2 = 0, 0
-        for thread in dct1:
-            success = dct1[thread]["success"] if dct1[thread]["run_success"] <= run else 0
-            successes1 += success
-            if success == 1 and thread > 500:
-                raise Exception(f"A non-decomposable polynomial ({thread}) was marked as success.")
-            success = dct2[thread]["success"] if dct2[thread]["run_success"] <= run else 0
-            successes2 += success
-            if success == 1 and thread > 500:
-                raise Exception(f"A non-decomposable polynomial ({thread}) was marked as success.")
-        run_to_successes1[run] = successes1
-        run_to_successes2[run] = successes2
-
-    # Plot the results
-    save_path = join(PLOTS_DIR, "successes_per_attempts_hybrid_1000_deg15.png")
-    if run == 1:
-        plt.figure(figsize=(8, 5))
-        plt.title(f"Successes per attempts for hybrid dataset", fontsize=20)
-        xs, ys1, ys2 = np.array(list(run_to_successes1.keys())), list(run_to_successes1.values()), list(
-            run_to_successes2.values())
-        width, space = 2, 2
-        plt.bar(xs - width / 1.7, ys1, color="royalblue", width=width, edgecolor="black", label=f"Best hp ({ys1[-1]})")
-        plt.bar(xs + width / 1.7, ys2, color="hotpink", width=width, edgecolor="black", label=f"Best hp ({ys2[-1]})")
-        plt.xticks(xs)
-        plt.yticks([max(max(ys1), max(ys2))])
-        plt.xlabel("Amount of attempts", fontsize=15)
-        plt.ylabel("Successes", fontsize=15)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(save_path)
-        plt.show()
-
+    return
+    # ... (rest of the function unchanged)
 
 def classify_results(results):
     # Load dataset_hybrid_1000_deg15.csv
@@ -417,18 +424,53 @@ def view_results():
     df.to_csv(join(CLASSIFIER_DIR, f"test_predictions.csv"), index=False)
 
 
+def run_baseline():
+    """
+    Run sympy's baseline on the datasets and plot the results.
+    """
+    import pickle
+    if os.path.exists("temp.pkl"):
+        results = pickle.load(open("temp.pkl", "rb"))
+        return results
+
+    # Load the datasets
+    df1 = pd.read_csv(join("data", "dataset_100_5_3.csv"))
+    df2 = pd.read_csv(join("data", "dataset_300_vary.csv"))
+
+    results = {}
+
+    # Iterate through the datasets and run sympy's factor on each polynomial, and check if the result is decomposable or not
+    for j, df in enumerate([df1, df2]):
+        results[DATASETS[j]] = {}
+
+        for i in tqdm(range(df.shape[0]), desc="Running sympy's baseline", total=df.shape[0]):
+            g = sp.Poly(df.iloc[i]["P(x)"])
+            h = sp.Poly(df.iloc[i]["Q(x)"])
+            # Compose the polynomials
+            f = sp.simplify(g.subs(list(g.free_symbols)[0], h.as_expr()))
+            # Factor the polynomial
+            factored_f = sp.decompose(f)
+            # Check if the factored polynomial is decomposable or not
+            results[DATASETS[j]][i+1] = {
+                "success": 1 if len(factored_f) > 1 else 0,
+                "run_success": 1
+            }
+
+    with open("temp.pkl", "wb") as f:
+        pickle.dump(results, f)
+
+    return results
+
+
 def main():
     # Get the model's results
-    results1, results2 = get_all_results("output_best_hp"), get_all_results("output_default_hp")
+    results1, results2, results3 = get_all_results("output_best_hp"), run_baseline(), get_all_results("output_dirs")
 
     # classify_results(results1)
     # view_results()
 
     # Set the amount of runs
-    runs = 6
-    for run in range(1, runs + 1):
-        # Plot the results
-        plot_results(results1, results2, run)
+    plot_results(results1, results2, results3, 6, style="line")
 
 
 if __name__ == "__main__":

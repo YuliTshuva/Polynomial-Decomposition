@@ -18,6 +18,11 @@ from xgboost import XGBClassifier
 # Constants
 rcParams['font.family'] = 'Times New Roman'
 
+LABEL_SIZE = 35
+TITLE_SIZE = 38
+SUPTITLE_SIZE = 41
+LINESTYLES = ["solid", "dashed", "dotted", "dashdot", (0, (3, 1, 1, 1))]
+
 
 def analyze_for_100_5_3():
     """
@@ -289,11 +294,15 @@ def analyze_both_100_and_300(style="line"):
         success_dicts.append(scale_successes1)
         success_1_counts.append(successes1)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(22, 5), gridspec_kw={'width_ratios': [1, 2]})
+    fig, axes = plt.subplots(2, 2, figsize=(22, 12))
+    ax1 = axes[0, 0]
+    ax3 = axes[0, 1]
+    # Set ax2 to be the whole lower row
+    ax2 = plt.subplot(2, 1, 2)
 
     width, space = 2.3, 2.3
 
-    ax1.set_title(f"Success rate over Dataset 100_5_3", fontsize=20)
+    ax1.set_title(f"Success rate over Dataset 100_5_3", fontsize=TITLE_SIZE)
     xs = np.array(sorted(list(success_100.keys())))
     ys = np.array([success_100[x] for x in xs])
     if style == "bin":
@@ -305,12 +314,14 @@ def analyze_both_100_and_300(style="line"):
     ax1.set_xticks(list(success_100.keys()))
     ax1.set_xticklabels(list(success_100.keys()), rotation=45)
     ax1.set_yticks(range(5 + 1))
-    ax1.set_xlabel("Coefficients Scale", fontsize=15)
-    ax1.set_ylabel("Success Rate", fontsize=15)
+    ax1.set_yticklabels(["0%", "20%", "40%", "60%", "80%", "100%"])
+    ax1.set_xlabel("Coefficients Scale", fontsize=LABEL_SIZE)
+    ax1.set_ylabel("Success Rate", fontsize=LABEL_SIZE)
     ax1.legend()
 
-    ax2.set_title(f"Success rate over Dataset 300_vary", fontsize=20)
+    ax2.set_title(f"Success rate over Dataset 300_vary", fontsize=TITLE_SIZE)
     colors = ["violet", "dodgerblue", "hotpink", "turquoise", "salmon"]
+    linestyles = ["solid", "dashed", "dotted", "dashdot", (0, (3, 1, 1, 1))]
     labels = [f"$(deg\_h, deg\_g) = ({combinations[i][0]}, {combinations[i][1]})$ ({success_1_counts[i]}/60)" for i in
               range(len(combinations))]
     for i, dct in enumerate(success_dicts):
@@ -319,24 +330,99 @@ def analyze_both_100_and_300(style="line"):
         if style == "bin":
             ax2.bar(1.5 * xs + (i - 2) * space, ys, width=width, color=colors[i], label=labels[i], edgecolor="black")
         if style == "line":
-            ax2.plot(1.5 * xs, ys, color=colors[i], label=labels[i])
+            ax2.plot(1.5 * xs, ys, color=colors[i], label=labels[i], linestyle=linestyles[i])
 
     ax2.set_xticks(1.5 * xs)
     ax2.set_xticklabels(sorted(list(success_100.keys())), rotation=45)
     ax2.set_yticks(range(3 + 1))
-    ax2.set_xlabel("Coefficients Scale", fontsize=15)
+    ax2.set_yticklabels(["0%", "33%", "66%", "100%"])
+    ax2.set_xlabel("Coefficients Scale", fontsize=LABEL_SIZE)
     ax2.legend()
 
-    plt.suptitle("Successes rate per scale over Datasets 100_5_3 and 300_vary", fontsize=25)
+    # Sum the successes
+    successes1, successes2 = 0, 0
+    scale_successes1, scale_successes2 = {}, {}
+    repetitions = 10
+    max_degree = 30
+
+    def is_prime(n):
+        if n <= 1:
+            return False
+        for i in range(2, int(n ** 0.5) + 1):
+            if n % i == 0:
+                return False
+        return True
+
+    degs = []
+    for input_degree in range(4, max_degree + 1):
+        if is_prime(input_degree):
+            continue
+        degs.append(input_degree)
+
+    # The working directory
+    WORKING_DIR = join("output_dirs", "evolving_input_degree_low_temp")
+
+    for thread in os.listdir(join(WORKING_DIR)):
+        thread_dir1 = join(WORKING_DIR, thread)
+        with open(join(thread_dir1, "polynomials.txt"), "r") as f:
+            loss1 = float(f.readlines()[6].split("Loss = ")[1].strip())
+
+        # Calculate the scale
+        scale = degs[(int(thread.split("_")[1]) - 1) // repetitions]
+        if scale not in scale_successes1:
+            scale_successes1[scale] = 0
+
+        # Check if the model succeeded
+        if loss1 < 1e-5:
+            successes1 += 1
+            scale_successes1[scale] += 1
+
+    # The working directory
+    WORKING_DIR = join("output_dirs", "evolving_input_degree_high_temperature")
+
+    for thread in os.listdir(join(WORKING_DIR)):
+        thread_dir1 = join(WORKING_DIR, thread)
+        with open(join(thread_dir1, "polynomials.txt"), "r") as f:
+            loss1 = float(f.readlines()[6].split("Loss = ")[1].strip())
+
+        # Calculate the scale
+        scale = degs[(int(thread.split("_")[1]) - 1) // repetitions]
+
+        if scale not in scale_successes2:
+            scale_successes2[scale] = 0
+
+        # Check if the model succeeded
+        if loss1 < 1e-5:
+            successes1 += 1
+            scale_successes2[scale] += 1
+
+
+
+    ax3.set_title(f"Success rate decay as a function of the degree", fontsize=TITLE_SIZE)
+    xs = np.array(sorted(list(scale_successes1.keys())))
+    ys = np.array([scale_successes1[x] for x in xs])
+    ax3.plot(xs, ys, color="royalblue", label="Low temperature")
+    ax3.set_xticks(list(scale_successes1.keys()))
+    ax3.set_xticklabels(list(scale_successes1.keys()), rotation=45)
+    ax3.set_yticks(range(10 + 1))
+    ax3.set_yticklabels(["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"])
+    ax3.set_xlabel("Input polynomial's degree", fontsize=LABEL_SIZE)
+    # ax3.set_ylabel("Success Rate", fontsize=15)
+    xs = np.array(sorted(list(scale_successes2.keys())))
+    ys = np.array([scale_successes2[x] for x in xs])
+    ax3.plot(xs, ys, color="hotpink", label="High temperature")
+    ax3.legend()
+
+    plt.suptitle("Successes rate per scale over Datasets 100_5_3 and 300_vary", fontsize=SUPTITLE_SIZE)
 
     plt.tight_layout()
-    plt.savefig(join("plots", "default_hp_results", f"{style}_successes_per_scale_100_and_300.png"))
+    plt.savefig(join("plots", "default_hp_results", f"{style}_successes_per_scale_100_and_300.pdf"))
     plt.show()
 
 
-def analyze_ablation(style="bin"):
-    plt.subplots(2, 3, figsize=(20, 10))
-    plt.suptitle("Ablation study", fontsize=40, y=0.99)
+def analyze_ablation(style="line"):
+    fig, _ = plt.subplots(2, 3, figsize=(20, 10))
+    plt.suptitle("Ablation study", fontsize=SUPTITLE_SIZE, y=0.99)
     # Sum the successes
     successes1, successes2, successes3, successes4 = 0, 0, 0, 0
     scale_successes1, scale_successes2, scale_successes3, scale_successes4 = {}, {}, {}, {}
@@ -385,7 +471,7 @@ def analyze_ablation(style="bin"):
             scale_successes4[scale] += 1
 
     plt.subplot(2, 3, 1)
-    plt.title(f"Success per scale - 100", fontsize=27)
+    plt.title(f"Success per scale - 100", fontsize=TITLE_SIZE)
     xs = np.array(list(scale_successes1.keys()))
     ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                           list(scale_successes3.values()), list(scale_successes4.values()))
@@ -401,24 +487,23 @@ def analyze_ablation(style="bin"):
     width, space = 1.5, 2
     if style == "bin":
         plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
-                label=f"Without rounding coefficients ({successes3})")
+                label="Without rounding coefficients")
         plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-                label=f"Without guessing coefficients ({successes1})")
+                label="Without guessing coefficients")
         plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-                label=f"Without using regularization ({successes2})")
+                label="Without using regularization")
         plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
-                label=f"Full model ({successes4})")
+                label="Full model")
     if style == "line":
-        plt.plot(xs, ys3, color="red", label=f"Without rounding coefficients ({successes3})")
-        plt.plot(xs, ys1, color="turquoise", label=f"Without guessing coefficients ({successes1})")
-        plt.plot(xs, ys2, color="royalblue", label=f"Without using regularization ({successes2})")
-        plt.plot(xs, ys4, color="hotpink", label=f"Full model ({successes4})")
+        plt.plot(xs, ys3, color="red", label="Without solution checking", linestyle=LINESTYLES[0])
+        plt.plot(xs, ys1, color="turquoise", label="Without coefficients initialization", linestyle=LINESTYLES[1])
+        plt.plot(xs, ys2, color="royalblue", label="Without weights regularization", linestyle=LINESTYLES[2])
+        plt.plot(xs, ys4, color="hotpink", label="Full method", linestyle=LINESTYLES[3])
 
     plt.xticks(list(scale_successes1.keys()), rotation=45, fontsize=15)
-    plt.yticks(range(repetitions + 1), fontsize=15)
-    # plt.xlabel("Scale", fontsize=15)
-    plt.ylabel("Amount of successes", fontsize=20)
-    plt.legend(loc="lower right")
+    plt.yticks(range(repetitions + 1), fontsize=15, labels=["0%", "20%", "40%", "60%", "80%", "100%"])
+    plt.ylabel("Success Rate", fontsize=LABEL_SIZE)
+    # No plt.legend() here
 
     combinations = [[3, 5], [3, 6], [3, 4], [4, 4], [2, 7]]
 
@@ -472,7 +557,7 @@ def analyze_ablation(style="bin"):
                 scale_successes4[scale] += 1
 
         plt.subplot(2, 3, i + 2)
-        plt.title(f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=27)
+        plt.title(f"Successes per scale for {combinations[i][1]}_{combinations[i][0]}", fontsize=TITLE_SIZE)
         xs = np.array(list(scale_successes1.keys()))
         ys1, ys2, ys3, ys4 = (list(scale_successes1.values()), list(scale_successes2.values()),
                               list(scale_successes3.values()), list(scale_successes4.values()))
@@ -488,29 +573,35 @@ def analyze_ablation(style="bin"):
         width, space = 2, 2
         if style == "bin":
             plt.bar(xs - 1.5 * space, ys3, color="red", width=width, edgecolor="black",
-                    label=f"Without rounding coefficients ({successes3})")
+                    label="Without rounding coefficients")
             plt.bar(xs - 0.5 * space, ys1, color="turquoise", width=width, edgecolor="black",
-                    label=f"Without guessing coefficients ({successes1})")
+                    label="Without guessing coefficients")
             plt.bar(xs + 0.5 * space, ys2, color="royalblue", width=width, edgecolor="black",
-                    label=f"Without using regularization ({successes2})")
+                    label="Without using regularization")
             plt.bar(xs + 1.5 * space, ys4, color="hotpink", width=width, edgecolor="black",
-                    label=f"Full model ({successes4})")
+                    label="Full model")
         if style == "line":
-            plt.plot(xs, ys3, color="red", label=f"Without rounding coefficients ({successes3})")
-            plt.plot(xs, ys1, color="turquoise", label=f"Without guessing coefficients ({successes1})")
-            plt.plot(xs, ys2, color="royalblue", label=f"Without using regularization ({successes2})")
-            plt.plot(xs, ys4, color="hotpink", label=f"Full model ({successes4})")
+            plt.plot(xs, ys3, color="red", label="Without solution checking", linestyle=LINESTYLES[0])
+            plt.plot(xs, ys1, color="turquoise", label="Without coefficients initialization", linestyle=LINESTYLES[1])
+            plt.plot(xs, ys2, color="royalblue", label="Without weights regularization", linestyle=LINESTYLES[2])
+            plt.plot(xs, ys4, color="hotpink", label="Full method", linestyle=LINESTYLES[3])
 
         plt.xticks(list(scale_successes1.keys()), rotation=45, fontsize=15)
-        plt.yticks(range(repetitions + 1), fontsize=15)
+        plt.yticks(range(repetitions + 1), fontsize=15, labels=["0%", "33%", "66%", "100%"])
         if i > 1:
-            plt.xlabel("Scale", fontsize=20)
+            plt.xlabel("Coefficients Scale", fontsize=LABEL_SIZE)
         if i in [2]:
-            plt.ylabel("Amount of successes", fontsize=20)
-        plt.legend(loc="lower right")
+            plt.ylabel("Success Rate", fontsize=LABEL_SIZE)
+        # No plt.legend() here
+
+    # Single shared legend at the bottom, using handles from the last subplot
+    handles, labels = plt.gca().get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=20,
+               bbox_to_anchor=(0.5, -0.01), frameon=True)
 
     plt.tight_layout(pad=1.3)
-    plt.savefig(join("plots", "ablation", f"{style}_ablation_study.pdf"))
+    plt.subplots_adjust(bottom=0.17)  # Make room for the legend
+    plt.savefig(join("plots", "ablation", f"{style}_ablation_study.pdf"), bbox_inches="tight")
     plt.show()
 
 
@@ -900,4 +991,4 @@ def classify_decomposable():
 
 
 if __name__ == "__main__":
-    analyze_ablation(style="bin")
+    analyze_both_100_and_300()

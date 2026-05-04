@@ -1,8 +1,3 @@
-"""
-Yuli Tshuva
-Trying to improve my algorithm for large coefficients by rounding Q's coeffs every XXXX epochs.
-"""
-
 # Imports
 import sys
 import torch.optim as optim
@@ -20,7 +15,7 @@ import time
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Hyperparameters
-EPOCHS = int(1e4)
+EPOCHS = int(2e3)
 LR, MIN_LR = 10, 1e-3
 EARLY_STOPPING, MIN_CHANGE = int(3e2), 2
 LAMBDA1, LAMBDA2, LAMBDA3 = 1, 1, 1e3
@@ -174,6 +169,10 @@ def train(train_id: int):
     losses, epochs = [], [0]
     # Build a training loop
     epoch = -1
+
+    # Make sure Rs on the same device as the model parameters
+    Rs.to(DEVICE)
+
     while epoch < EPOCHS:
         # Add epochs
         epoch += 1
@@ -188,7 +187,7 @@ def train(train_id: int):
 
         # Forward pass
         optimizer.zero_grad()
-        output = model()
+        output = model().to(DEVICE)
 
         # Compute loss
         loss = loss_fn([output, Rs]) + LAMBDA1 * model.q_ln(Q_REG) + LAMBDA2 * model.p_ln(P_REG)
@@ -225,8 +224,8 @@ def train(train_id: int):
         if count > EARLY_STOPPING:
             if lr <= MIN_LR:
                 print(f"[{get_time()}][Thread {train_id}]: Early stopping at epoch {epoch}")
-                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
+                # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                # save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
                 return
             else:
                 lr = lr / 10
@@ -256,8 +255,8 @@ def train(train_id: int):
                     f.write(f"Epoch {epoch}: Loss = 0\n")
                     f.write(f"p(x) = {ps_result}.\n")
                     f.write(f"Q(x) = {torch.round(model.Q).tolist()[::-1]}\n")
-                plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
-                save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
+                # plot_loss(losses, save=LOSS_PLOT(train_id), mode="log", xticks=epochs)
+                # save_loss_as_pickle(losses, join(THREAD_DIR(train_id), "losses.pkl"))
                 return True
 
         if os.path.exists(STOP_THREAD_FILE(train_id)):
